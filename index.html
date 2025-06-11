@@ -17,10 +17,14 @@
         .player-name:last-child { border-bottom: none; }
         .score { font-weight: 800; color: #2563eb; }
         .winner { font-weight: 700; color: #16a34a; background-color: #f0fdf4; border-left: 4px solid #22c55e; }
+        /* Linhas Conectoras */
+        .bracket-match-wrapper::after { content: ''; position: absolute; right: -2.5rem; top: 50%; transform: translateY(-50%); width: 2.5rem; height: 2px; background-color: #cbd5e1; }
+        .bracket-round:last-child .bracket-match-wrapper::after { display: none; }
+        .bracket-match-wrapper:nth-child(odd):not(:last-child)::before { content: ''; position: absolute; right: -4.5rem; top: 50%; width: 2rem; height: calc(100% + 50px); border: 2px solid #cbd5e1; border-left: none; border-top-right-radius: 0.75rem; border-bottom-right-radius: 0.75rem; }
+        .bracket-round > div:nth-child(even) .bracket-match-wrapper::before { content: ''; position: absolute; right: -4.5rem; bottom: 50%; width: 2rem; height: calc(100% + 50px); border: 2px solid #cbd5e1; border-left: none; transform: scaleY(-1); border-top-right-radius: 0.75rem; border-bottom-right-radius: 0.75rem; }
+        
         #toast-notification { position: fixed; top: -100px; left: 50%; transform: translateX(-50%); background-color: #ffffff; color: #1e3a8a; padding: 1rem 1.5rem; border-radius: 9999px; box-shadow: 0 10px 15px rgba(0,0,0,0.1); transition: top 0.5s ease-in-out; z-index: 9999; font-weight: 500; display: flex; align-items: center; gap: 0.5rem;}
         #toast-notification.show { top: 20px; }
-        .scroll-indicator { animation: bounce-x 2s infinite; }
-        @keyframes bounce-x { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(5px); } }
     </style>
 </head>
 <body class="bg-slate-50">
@@ -35,15 +39,16 @@
     </main>
 
     <div id="toast-notification">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
         <span>Placar atualizado!</span>
     </div>
     
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, onSnapshot, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+        // --- Configuração do Firebase ---
         const firebaseConfig = {
           apiKey: "AIzaSyDEiEknWaOl2ra-it2dB8mFGPb9-Q__5-E",
           authDomain: "beachp4-70588.firebaseapp.com",
@@ -52,26 +57,35 @@
           messagingSenderId: "960018980292",
           appId: "1:960018980292:web:a11dbdd40811dec1ee5891"
         };
-        const appId = 'beach-tennis-v5';
+        const appId = 'beach-tennis-v6'; // Use o mesmo App ID do admin para ver os mesmos dados
         
+        // --- Variáveis Globais ---
         let db, auth;
         let unsubscribeTournamentDetails = null;
         let lastKnownMatchesState = {};
 
+        // --- Inicialização e Autenticação ---
         try {
             const app = initializeApp(firebaseConfig);
             db = getFirestore(app);
             auth = getAuth(app);
-        } catch (e) { console.error(e); }
+        } catch (e) { 
+            console.error("Erro na inicialização do Firebase:", e);
+            document.getElementById('app-container').innerHTML = `<p class="text-center text-red-500">Erro ao conectar com o servidor.</p>`;
+        }
 
         onAuthStateChanged(auth, async (user) => {
             if (!user) {
-                 await signInAnonymously(auth).catch(err => console.error(err));
-            } else {
-                loadAllTournaments();
+                 await signInAnonymously(auth).catch(err => {
+                    console.error("Login anônimo falhou:", err);
+                    document.getElementById('app-container').innerHTML = `<p class="text-center text-red-500">Não foi possível carregar os dados. Verifique sua conexão.</p>`;
+                 });
             }
+            // A função loadAllTournaments será chamada independentemente, pois os dados são públicos
+            loadAllTournaments();
         });
         
+        // --- Funções da UI ---
         function showToast(message) {
             const toast = document.getElementById('toast-notification');
             toast.querySelector('span').textContent = message;
@@ -79,44 +93,60 @@
             setTimeout(() => toast.classList.remove('show'), 3500);
         }
 
+        /**
+         * Carrega e exibe a lista de todos os torneios disponíveis.
+         * Esta função é o ponto de entrada principal da página.
+         */
         window.loadAllTournaments = () => {
-            if (unsubscribeTournamentDetails) unsubscribeTournamentDetails();
+            // Cancela qualquer inscrição anterior para evitar múltiplos listeners
+            if (unsubscribeTournamentDetails) {
+                unsubscribeTournamentDetails();
+                unsubscribeTournamentDetails = null;
+            }
             const tournamentsCol = collection(db, `artifacts/${appId}/public/data/tournaments`);
             onSnapshot(tournamentsCol, (snapshot) => {
                 const container = document.getElementById('app-container');
-                if (snapshot.empty) {
-                    container.innerHTML = `<p class="text-gray-500 text-center">Nenhum torneio disponível no momento.</p>`;
-                    return;
-                }
                 let content = `
                     <h2 class="text-3xl font-bold text-center text-gray-800 mb-8">Torneios Ativos</h2>
                     <div id="tournaments-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">`;
-                snapshot.docs.forEach((doc) => {
-                    const t = doc.data();
-                    let statusText = t.status.replace('_', ' ');
-                    if(statusText === 'open') statusText = 'Inscrições Abertas';
-                    if(statusText === 'knockout') statusText = 'Mata-Mata';
-                    
-                    const formattedDate = t.startDate ? new Date(t.startDate + 'T00:00:00').toLocaleDateString('pt-BR') : 'Data a definir';
+                
+                if (snapshot.empty) {
+                    content += `<p class="text-gray-500 col-span-full text-center">Nenhum torneio disponível no momento.</p>`;
+                } else {
+                    snapshot.docs.forEach((doc) => {
+                        const t = doc.data();
+                        let statusText = (t.status || 'open').replace('_', ' ');
+                        if (statusText === 'open') statusText = 'Inscrições Abertas';
+                        if (statusText === 'knockout') statusText = 'Mata-Mata';
 
-                    content += `
-                        <div onclick="viewTournament('${doc.id}')" class="bg-white p-6 rounded-xl shadow-lg cursor-pointer transition-transform transform hover:-translate-y-1 hover:shadow-2xl flex flex-col">
-                            <img src="${t.logoUrl || 'https://placehold.co/600x400/e2e8f0/64748b?text=Logo'}" alt="Logo do Torneio" class="w-full h-40 object-cover rounded-lg mb-4" onerror="this.onerror=null;this.src='https://placehold.co/600x400/e2e8f0/64748b?text=Logo';">
-                            <h3 class="text-xl font-bold text-blue-700">${t.name}</h3>
-                            <p class="text-gray-500 text-sm mt-2">${formattedDate} - ${t.startTime || 'Hora a definir'}</p>
-                            <div class="flex-grow"></div>
-                            <div class="mt-4">
-                               <span class="inline-block px-3 py-1 text-sm font-semibold rounded-full capitalize ${t.status === 'running' || t.status === 'knockout' ? 'bg-green-100 text-green-800' : (t.status === 'completed' ? 'bg-gray-200 text-gray-800' : 'bg-yellow-100 text-yellow-800')}">
-                                    ${statusText}
-                               </span>
-                            </div>
-                        </div>`;
-                });
+                        const formattedDate = t.startDate ? new Date(t.startDate + 'T00:00:00').toLocaleDateString('pt-BR') : 'Data a definir';
+
+                        content += `
+                            <div onclick="viewTournament('${doc.id}')" class="bg-white p-6 rounded-xl shadow-lg cursor-pointer transition-transform transform hover:-translate-y-1 hover:shadow-2xl flex flex-col">
+                                <img src="${t.logoUrl || 'https://placehold.co/600x400/e2e8f0/64748b?text=Logo'}" alt="Logo do Torneio" class="w-full h-40 object-cover rounded-lg mb-4 bg-gray-200" onerror="this.onerror=null;this.src='https://placehold.co/600x400/e2e8f0/64748b?text=Logo';">
+                                <h3 class="text-xl font-bold text-blue-700">${t.name}</h3>
+                                <p class="text-gray-500 text-sm mt-2">${formattedDate} - ${t.startTime || 'Hora a definir'}</p>
+                                <div class="flex-grow"></div>
+                                <div class="mt-4">
+                                   <span class="inline-block px-3 py-1 text-sm font-semibold rounded-full capitalize ${t.status === 'running' || t.status === 'knockout' ? 'bg-green-100 text-green-800' : (t.status === 'completed' ? 'bg-gray-200 text-gray-800' : 'bg-yellow-100 text-yellow-800')}">
+                                        ${statusText}
+                                   </span>
+                                </div>
+                            </div>`;
+                    });
+                }
                 content += `</div>`;
                 container.innerHTML = content;
+            }, (error) => {
+                console.error("Erro ao buscar torneios:", error);
+                document.getElementById('app-container').innerHTML = `<p class="text-center text-red-500">Ocorreu um erro ao carregar os torneios.</p>`;
             });
         }
         
+        /**
+         * Exibe a visualização detalhada de um torneio específico.
+         * @param {string} id - O ID do documento do torneio no Firestore.
+         */
         window.viewTournament = (id) => {
             if (unsubscribeTournamentDetails) unsubscribeTournamentDetails();
             const container = document.getElementById('app-container');
@@ -126,17 +156,26 @@
             unsubscribeTournamentDetails = onSnapshot(tournamentDocRef, (doc) => {
                 if (doc.exists()) {
                     const tournament = {id: doc.id, ...doc.data()};
+                    // Verifica se houve atualização para mostrar notificação
                     if (lastKnownMatchesState[id] && JSON.stringify(lastKnownMatchesState[id]) !== JSON.stringify(tournament.matches)) {
                         showToast(`O torneio "${tournament.name}" foi atualizado!`);
                     }
                     lastKnownMatchesState[id] = tournament.matches;
                     renderTournamentView(tournament);
+                } else {
+                    document.getElementById('tournament-display').innerHTML = `<p class="text-center text-red-500">Torneio não encontrado. Pode ter sido removido.</p><button onclick="loadAllTournaments()" class="mt-4 text-blue-600">Voltar</button>`;
                 }
             });
         }
         
+        /**
+         * Renderiza o conteúdo dentro da visualização de um torneio (chave ou mensagem).
+         * @param {object} data - Os dados do torneio.
+         */
         function renderTournamentView(data) {
             const display = document.getElementById('tournament-display');
+            if (!display) return;
+            
             let content = `
                 <button onclick="loadAllTournaments()" class="mb-6 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
@@ -144,7 +183,12 @@
                 </button>`;
             
             if (!data.matches || data.matches.length === 0) {
-                 content += `<div class="text-center p-8"><img src="${data.logoUrl || 'https://placehold.co/600x400/e2e8f0/64748b?text=Logo'}" alt="Logo" class="max-w-xs mx-auto rounded-xl mb-6" onerror="this.onerror=null;this.src='https://placehold.co/600x400/e2e8f0/64748b?text=Logo';"><h2 class="text-2xl font-bold text-gray-700">${data.name}</h2><p class="mt-4 text-gray-500">As chaves para este torneio ainda não foram geradas. Volte em breve!</p></div>`;
+                 content += `
+                    <div class="text-center p-8">
+                        <img src="${data.logoUrl || 'https://placehold.co/600x400/e2e8f0/64748b?text=Logo'}" alt="Logo" class="max-w-xs mx-auto rounded-xl mb-6 bg-gray-200" onerror="this.onerror=null;this.src='https://placehold.co/600x400/e2e8f0/64748b?text=Logo';">
+                        <h2 class="text-2xl font-bold text-gray-700">${data.name}</h2>
+                        <p class="mt-4 text-gray-500">As chaves para este torneio ainda não foram geradas. Volte em breve!</p>
+                    </div>`;
             } else if (data.status === 'knockout' || data.status === 'completed') {
                 content += renderPublicBrackets(data);
             } else {
@@ -153,6 +197,11 @@
             display.innerHTML = content;
         }
 
+        /**
+         * Gera o HTML para a chave de mata-mata.
+         * @param {object} data - Os dados do torneio, incluindo as partidas (matches).
+         * @returns {string} O HTML da chave.
+         */
         function renderPublicBrackets(data) {
             let bracketHTML = `
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
@@ -167,6 +216,9 @@
             });
 
              Object.keys(rounds).sort((a, b) => a - b).forEach(roundNumber => {
+                // Ordena as partidas dentro da rodada para garantir a ordem correta
+                rounds[roundNumber].sort((a,b) => a.matchNumber - b.matchNumber);
+                 
                 bracketHTML += `<div class="bracket-round">`;
                 rounds[roundNumber].forEach(match => {
                     bracketHTML += `
