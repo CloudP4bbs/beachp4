@@ -38,7 +38,7 @@
           messagingSenderId: "960018980292",
           appId: "1:960018980292:web:a11dbdd40811dec1ee5891"
         };
-        const appId = 'beach-tennis-v9';
+        const appId = 'beach-tennis-v10';
         let db, auth;
 
         try {
@@ -76,7 +76,8 @@
                     tournamentDiv.className = 'bg-white p-6 rounded-xl shadow-md';
                     
                     let matchesHTML = t.matches
-                        .filter(m => !m.winner && m.player1.id !== 'bye' && m.player2.id !== 'bye')
+                        .filter(m => !m.winner && m.player1 && m.player2 && m.player1.id !== 'bye' && m.player2.id !== 'bye')
+                        .sort((a,b) => a.round - b.round || a.matchNumber - b.matchNumber)
                         .map(m => `
                         <div class="grid grid-cols-3 items-center gap-4 border-b py-3">
                             <div class="text-right font-medium">${m.player1.name}</div>
@@ -103,7 +104,6 @@
         window.saveScore = async (tournamentId, round, matchNumber) => {
             const score1 = document.getElementById(`score1-${tournamentId}-${matchNumber}`).value;
             const score2 = document.getElementById(`score2-${tournamentId}-${matchNumber}`).value;
-
             if (score1 === '' || score2 === '') { alert("Preencha ambos os placares."); return; }
             if (score1 === score2) { alert("O placar não pode ser um empate."); return; }
 
@@ -124,24 +124,31 @@
             
             // Lógica para avançar vencedor
             const nextRound = round + 1;
-            const nextMatchNumber = Math.ceil(matchNumber / 2);
-            const nextMatchIndex = matches.findIndex(m => m.round === nextRound && m.matchNumber === nextMatchNumber);
+            const matchesInCurrentRound = matches.filter(m => m.round === round).length;
+            // A posição do vencedor na próxima rodada
+            const nextMatchOriginPosition = Math.ceil( (match.matchNumber - (matches.find(m => m.round === round).matchNumber - 1) ) / 2);
+            const firstMatchNumberOfNextRound = (matches.find(m => m.round === nextRound)?.matchNumber) || -1;
             
-            if (nextMatchIndex !== -1) {
-                // Se for partida ímpar na rodada, preenche player1. Se for par, preenche player2.
-                if (matchNumber % 2 === 1) {
-                    matches[nextMatchIndex].player1 = winner;
-                } else {
-                    matches[nextMatchIndex].player2 = winner;
+            if(firstMatchNumberOfNextRound !== -1) {
+                const nextMatchNumber = firstMatchNumberOfNextRound + nextMatchOriginPosition - 1;
+                const nextMatchIndex = matches.findIndex(m => m.round === nextRound && m.matchNumber === nextMatchNumber);
+                
+                if (nextMatchIndex !== -1) {
+                    if ((match.matchNumber - (matches.find(m => m.round === round).matchNumber - 1)) % 2 === 1) {
+                        matches[nextMatchIndex].player1 = winner;
+                    } else {
+                        matches[nextMatchIndex].player2 = winner;
+                    }
                 }
-            } else if (matches.filter(m => m.winner).length === matches.length) {
-                // Se for a última partida, finaliza o torneio
+            }
+
+            if (matches.filter(m => !m.winner).length === 0) {
                 tournamentData.status = 'completed';
             }
             
             await updateDoc(tournamentDocRef, { 
                 matches: matches,
-                status: tournamentData.status // Atualiza o status se o torneio acabou
+                status: tournamentData.status
             });
         }
     </script>
