@@ -17,12 +17,6 @@
         .player-name:last-child { border-bottom: none; }
         .score { font-weight: 800; color: #2563eb; }
         .winner { font-weight: 700; color: #16a34a; background-color: #f0fdf4; border-left: 4px solid #22c55e; }
-        /* Linhas Conectoras */
-        .bracket-match-wrapper::after { content: ''; position: absolute; right: -2.5rem; top: 50%; transform: translateY(-50%); width: 2.5rem; height: 2px; background-color: #cbd5e1; }
-        .bracket-round:last-child .bracket-match-wrapper::after { display: none; }
-        .bracket-match-wrapper:nth-child(odd):not(:last-child)::before { content: ''; position: absolute; right: -4.5rem; top: 50%; width: 2rem; height: calc(100% + 50px); border: 2px solid #cbd5e1; border-left: none; border-top-right-radius: 0.75rem; border-bottom-right-radius: 0.75rem; }
-        .bracket-round > div:nth-child(even) .bracket-match-wrapper::before { content: ''; position: absolute; right: -4.5rem; bottom: 50%; width: 2rem; height: calc(100% + 50px); border: 2px solid #cbd5e1; border-left: none; transform: scaleY(-1); border-top-right-radius: 0.75rem; border-bottom-right-radius: 0.75rem; }
-        
         #toast-notification { position: fixed; top: -100px; left: 50%; transform: translateX(-50%); background-color: #ffffff; color: #1e3a8a; padding: 1rem 1.5rem; border-radius: 9999px; box-shadow: 0 10px 15px rgba(0,0,0,0.1); transition: top 0.5s ease-in-out; z-index: 9999; font-weight: 500; display: flex; align-items: center; gap: 0.5rem;}
         #toast-notification.show { top: 20px; }
     </style>
@@ -57,31 +51,22 @@
           messagingSenderId: "960018980292",
           appId: "1:960018980292:web:a11dbdd40811dec1ee5891"
         };
-        const appId = 'beach-tennis-v6'; // Use o mesmo App ID do admin para ver os mesmos dados
+        const appId = 'beach-tennis-v7';
         
-        // --- Variáveis Globais ---
         let db, auth;
         let unsubscribeTournamentDetails = null;
         let lastKnownMatchesState = {};
 
-        // --- Inicialização e Autenticação ---
         try {
             const app = initializeApp(firebaseConfig);
             db = getFirestore(app);
             auth = getAuth(app);
-        } catch (e) { 
-            console.error("Erro na inicialização do Firebase:", e);
-            document.getElementById('app-container').innerHTML = `<p class="text-center text-red-500">Erro ao conectar com o servidor.</p>`;
-        }
+        } catch (e) { console.error(e); }
 
         onAuthStateChanged(auth, async (user) => {
             if (!user) {
-                 await signInAnonymously(auth).catch(err => {
-                    console.error("Login anônimo falhou:", err);
-                    document.getElementById('app-container').innerHTML = `<p class="text-center text-red-500">Não foi possível carregar os dados. Verifique sua conexão.</p>`;
-                 });
+                 await signInAnonymously(auth).catch(err => console.error(err));
             }
-            // A função loadAllTournaments será chamada independentemente, pois os dados são públicos
             loadAllTournaments();
         });
         
@@ -93,12 +78,7 @@
             setTimeout(() => toast.classList.remove('show'), 3500);
         }
 
-        /**
-         * Carrega e exibe a lista de todos os torneios disponíveis.
-         * Esta função é o ponto de entrada principal da página.
-         */
         window.loadAllTournaments = () => {
-            // Cancela qualquer inscrição anterior para evitar múltiplos listeners
             if (unsubscribeTournamentDetails) {
                 unsubscribeTournamentDetails();
                 unsubscribeTournamentDetails = null;
@@ -137,16 +117,9 @@
                 }
                 content += `</div>`;
                 container.innerHTML = content;
-            }, (error) => {
-                console.error("Erro ao buscar torneios:", error);
-                document.getElementById('app-container').innerHTML = `<p class="text-center text-red-500">Ocorreu um erro ao carregar os torneios.</p>`;
             });
         }
         
-        /**
-         * Exibe a visualização detalhada de um torneio específico.
-         * @param {string} id - O ID do documento do torneio no Firestore.
-         */
         window.viewTournament = (id) => {
             if (unsubscribeTournamentDetails) unsubscribeTournamentDetails();
             const container = document.getElementById('app-container');
@@ -156,25 +129,18 @@
             unsubscribeTournamentDetails = onSnapshot(tournamentDocRef, (doc) => {
                 if (doc.exists()) {
                     const tournament = {id: doc.id, ...doc.data()};
-                    // Verifica se houve atualização para mostrar notificação
                     if (lastKnownMatchesState[id] && JSON.stringify(lastKnownMatchesState[id]) !== JSON.stringify(tournament.matches)) {
                         showToast(`O torneio "${tournament.name}" foi atualizado!`);
                     }
                     lastKnownMatchesState[id] = tournament.matches;
                     renderTournamentView(tournament);
-                } else {
-                    document.getElementById('tournament-display').innerHTML = `<p class="text-center text-red-500">Torneio não encontrado. Pode ter sido removido.</p><button onclick="loadAllTournaments()" class="mt-4 text-blue-600">Voltar</button>`;
                 }
             });
         }
         
-        /**
-         * Renderiza o conteúdo dentro da visualização de um torneio (chave ou mensagem).
-         * @param {object} data - Os dados do torneio.
-         */
         function renderTournamentView(data) {
             const display = document.getElementById('tournament-display');
-            if (!display) return;
+            if(!display) return;
             
             let content = `
                 <button onclick="loadAllTournaments()" class="mb-6 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2">
@@ -197,11 +163,6 @@
             display.innerHTML = content;
         }
 
-        /**
-         * Gera o HTML para a chave de mata-mata.
-         * @param {object} data - Os dados do torneio, incluindo as partidas (matches).
-         * @returns {string} O HTML da chave.
-         */
         function renderPublicBrackets(data) {
             let bracketHTML = `
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
@@ -216,7 +177,6 @@
             });
 
              Object.keys(rounds).sort((a, b) => a - b).forEach(roundNumber => {
-                // Ordena as partidas dentro da rodada para garantir a ordem correta
                 rounds[roundNumber].sort((a,b) => a.matchNumber - b.matchNumber);
                  
                 bracketHTML += `<div class="bracket-round">`;
@@ -234,7 +194,6 @@
             bracketHTML += `</div>`;
             return bracketHTML;
         }
-
     </script>
 </body>
 </html>
