@@ -23,7 +23,7 @@
 
     <main class="container mx-auto p-4 sm:p-6 lg:p-8">
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div class="lg:col-span-1 bg-white p-6 rounded-xl shadow-md">
+            <div class="lg:col-span-1 bg-white p-6 rounded-xl shadow-md h-fit">
                 <h2 class="text-2xl font-bold mb-4">Adicionar Novo Atleta</h2>
                 <div class="space-y-4">
                     <input type="text" id="athlete-name" placeholder="Nome completo do Atleta" class="form-input">
@@ -31,7 +31,7 @@
                         <option value="masculino">Masculino</option>
                         <option value="feminino">Feminino</option>
                     </select>
-                    <button onclick="addAthlete()" class="w-full bg-green-500 text-white p-3 rounded-lg font-semibold hover:bg-green-600">Cadastrar Atleta</button>
+                    <button id="add-athlete-btn" onclick="addAthlete()" class="w-full bg-green-500 text-white p-3 rounded-lg font-semibold hover:bg-green-600 disabled:bg-gray-400">Cadastrar Atleta</button>
                 </div>
             </div>
             <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-md">
@@ -61,7 +61,7 @@
           messagingSenderId: "960018980292",
           appId: "1:960018980292:web:a11dbdd40811dec1ee5891"
         };
-        const appId = 'beach-tennis-v8';
+        const appId = 'beach-tennis-v9';
         let db, auth, allAthletes = [];
 
         // --- Inicialização e Autenticação ---
@@ -89,10 +89,66 @@
             });
         }
 
-        window.addAthlete = async () => { /* Idêntica à V7 */ };
-        window.openEditAthleteModal = (athleteId) => { /* Idêntica à V7 */ };
-        window.updateAthlete = async (athleteId) => { /* Idêntica à V7 */ };
-        window.deleteAthlete = async (athleteId) => { /* Idêntica à V7 */ };
+        window.addAthlete = async () => {
+            const nameInput = document.getElementById('athlete-name');
+            const gender = document.getElementById('athlete-gender').value;
+            const addButton = document.getElementById('add-athlete-btn');
+
+            if (!nameInput || !nameInput.value.trim()) {
+                showModal(`<p class="text-lg text-center">O nome do atleta é obrigatório.</p><button onclick="closeModal()" class="w-full mt-4 bg-blue-500 text-white p-2 rounded-lg">OK</button>`);
+                return;
+            }
+
+            addButton.disabled = true;
+            addButton.textContent = 'Cadastrando...';
+
+            try {
+                const athletesCol = collection(db, `artifacts/${appId}/public/data/athletes`);
+                await addDoc(athletesCol, { name: nameInput.value.trim(), gender: gender });
+                nameInput.value = '';
+            } catch (e) { 
+                console.error(e); 
+                showModal(`<p class="text-lg text-center text-red-600">Ocorreu um erro ao cadastrar.</p><button onclick="closeModal()" class="w-full mt-4 bg-blue-500 text-white p-2 rounded-lg">OK</button>`);
+            } finally {
+                addButton.disabled = false;
+                addButton.textContent = 'Cadastrar Atleta';
+            }
+        };
+        
+        window.openEditAthleteModal = (athleteId) => {
+            const athlete = allAthletes.find(a => a.id === athleteId);
+            if (!athlete) return;
+            const modalHTML = `
+                <h3 class="text-xl font-bold mb-4">Editar Atleta</h3>
+                <div class="space-y-4">
+                    <input type="text" id="edit-athlete-name" value="${athlete.name}" class="form-input">
+                    <select id="edit-athlete-gender" class="form-input">
+                        <option value="masculino" ${athlete.gender === 'masculino' ? 'selected' : ''}>Masculino</option>
+                        <option value="feminino" ${athlete.gender === 'feminino' ? 'selected' : ''}>Feminino</option>
+                    </select>
+                </div>
+                <div class="flex gap-4 mt-6">
+                    <button onclick="closeModal()" class="w-full bg-gray-300 p-2 rounded-lg">Cancelar</button>
+                    <button onclick="updateAthlete('${athlete.id}')" class="w-full bg-blue-600 text-white p-2 rounded-lg">Salvar</button>
+                </div>
+            `;
+            showModal(modalHTML);
+        }
+
+        window.updateAthlete = async (athleteId) => {
+            const newName = document.getElementById('edit-athlete-name').value;
+            const newGender = document.getElementById('edit-athlete-gender').value;
+            if (!newName.trim()) return;
+            const athleteDoc = doc(db, `artifacts/${appId}/public/data/athletes`, athleteId);
+            await updateDoc(athleteDoc, { name: newName, gender: newGender });
+            closeModal();
+        }
+
+        window.deleteAthlete = async (athleteId) => {
+            if (!confirm("Tem certeza que deseja deletar este atleta? Esta ação não pode ser desfeita.")) return;
+            const athleteDoc = doc(db, `artifacts/${appId}/public/data/athletes`, athleteId);
+            await deleteDoc(athleteDoc);
+        }
 
         function renderAthleteList() {
             const listContainer = document.getElementById('athlete-list-container');
