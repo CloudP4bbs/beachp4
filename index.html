@@ -17,12 +17,6 @@
         .player-name:last-child { border-bottom: none; }
         .score { font-weight: 800; color: #2563eb; }
         .winner { font-weight: 700; color: #16a34a; background-color: #f0fdf4; border-left: 4px solid #22c55e; }
-        /* Linhas Conectoras */
-        .bracket-match-wrapper::after { content: ''; position: absolute; right: -2.5rem; top: 50%; transform: translateY(-50%); width: 2.5rem; height: 2px; background-color: #cbd5e1; }
-        .bracket-round:last-child .bracket-match-wrapper::after { display: none; }
-        .bracket-match-wrapper:nth-child(odd):not(:last-child)::before { content: ''; position: absolute; right: -4.5rem; top: 50%; width: 2rem; height: calc(100% + 50px); border: 2px solid #cbd5e1; border-left: none; border-top-right-radius: 0.75rem; border-bottom-right-radius: 0.75rem; }
-        .bracket-round > div:nth-child(even) .bracket-match-wrapper::before { content: ''; position: absolute; right: -4.5rem; bottom: 50%; width: 2rem; height: calc(100% + 50px); border: 2px solid #cbd5e1; border-left: none; transform: scaleY(-1); border-top-right-radius: 0.75rem; border-bottom-right-radius: 0.75rem; }
-        
         #toast-notification { position: fixed; top: -100px; left: 50%; transform: translateX(-50%); background-color: #ffffff; color: #1e3a8a; padding: 1rem 1.5rem; border-radius: 9999px; box-shadow: 0 10px 15px rgba(0,0,0,0.1); transition: top 0.5s ease-in-out; z-index: 9999; font-weight: 500; display: flex; align-items: center; gap: 0.5rem;}
         #toast-notification.show { top: 20px; }
         .scroll-indicator { animation: bounce-x 2s infinite; }
@@ -58,7 +52,7 @@
           messagingSenderId: "960018980292",
           appId: "1:960018980292:web:a11dbdd40811dec1ee5891"
         };
-        const appId = 'beach-tennis-v4';
+        const appId = 'beach-tennis-v5';
         
         let db, auth;
         let unsubscribeTournamentDetails = null;
@@ -68,29 +62,16 @@
             const app = initializeApp(firebaseConfig);
             db = getFirestore(app);
             auth = getAuth(app);
-        } catch (e) {
-            console.error(e);
-        }
+        } catch (e) { console.error(e); }
 
         onAuthStateChanged(auth, async (user) => {
             if (!user) {
-                // Tenta login anônimo para visualizar dados públicos
-                try {
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                        await signInWithCustomToken(auth, __initial_auth_token);
-                    } else {
-                        await signInAnonymously(auth);
-                    }
-                } catch(err) { console.error("Falha no login anônimo", err) }
+                 await signInAnonymously(auth).catch(err => console.error(err));
             } else {
                 loadAllTournaments();
             }
         });
         
-        // As demais funções da página pública (showToast, loadAllTournaments, viewTournament, etc.)
-        // permanecem as mesmas da v3, pois sua funcionalidade principal não mudou.
-        // O código abaixo é uma cópia funcional da versão anterior.
-
         function showToast(message) {
             const toast = document.getElementById('toast-notification');
             toast.querySelector('span').textContent = message;
@@ -98,7 +79,8 @@
             setTimeout(() => toast.classList.remove('show'), 3500);
         }
 
-        function loadAllTournaments() {
+        window.loadAllTournaments = () => {
+            if (unsubscribeTournamentDetails) unsubscribeTournamentDetails();
             const tournamentsCol = collection(db, `artifacts/${appId}/public/data/tournaments`);
             onSnapshot(tournamentsCol, (snapshot) => {
                 const container = document.getElementById('app-container');
@@ -115,13 +97,19 @@
                     if(statusText === 'open') statusText = 'Inscrições Abertas';
                     if(statusText === 'knockout') statusText = 'Mata-Mata';
                     
+                    const formattedDate = t.startDate ? new Date(t.startDate + 'T00:00:00').toLocaleDateString('pt-BR') : 'Data a definir';
+
                     content += `
-                        <div onclick="viewTournament('${doc.id}')" class="bg-white p-6 rounded-xl shadow-lg cursor-pointer transition-transform transform hover:-translate-y-1 hover:shadow-2xl">
+                        <div onclick="viewTournament('${doc.id}')" class="bg-white p-6 rounded-xl shadow-lg cursor-pointer transition-transform transform hover:-translate-y-1 hover:shadow-2xl flex flex-col">
+                            <img src="${t.logoUrl || 'https://placehold.co/600x400/e2e8f0/64748b?text=Logo'}" alt="Logo do Torneio" class="w-full h-40 object-cover rounded-lg mb-4" onerror="this.onerror=null;this.src='https://placehold.co/600x400/e2e8f0/64748b?text=Logo';">
                             <h3 class="text-xl font-bold text-blue-700">${t.name}</h3>
-                            <p class="text-gray-600 mt-2">${t.category} - ${t.division}</p>
-                            <span class="inline-block mt-4 px-3 py-1 text-sm font-semibold rounded-full capitalize ${t.status === 'running' || t.status === 'knockout' ? 'bg-green-100 text-green-800' : (t.status === 'completed' ? 'bg-gray-200 text-gray-800' : 'bg-yellow-100 text-yellow-800')}">
-                                ${statusText}
-                            </span>
+                            <p class="text-gray-500 text-sm mt-2">${formattedDate} - ${t.startTime || 'Hora a definir'}</p>
+                            <div class="flex-grow"></div>
+                            <div class="mt-4">
+                               <span class="inline-block px-3 py-1 text-sm font-semibold rounded-full capitalize ${t.status === 'running' || t.status === 'knockout' ? 'bg-green-100 text-green-800' : (t.status === 'completed' ? 'bg-gray-200 text-gray-800' : 'bg-yellow-100 text-yellow-800')}">
+                                    ${statusText}
+                               </span>
+                            </div>
                         </div>`;
                 });
                 content += `</div>`;
@@ -130,7 +118,7 @@
         }
         
         window.viewTournament = (id) => {
-             if (unsubscribeTournamentDetails) unsubscribeTournamentDetails();
+            if (unsubscribeTournamentDetails) unsubscribeTournamentDetails();
             const container = document.getElementById('app-container');
             container.innerHTML = `<div id="tournament-display" class="bg-white rounded-xl shadow-2xl p-4 sm:p-6 min-h-[400px]"></div>`;
 
@@ -156,29 +144,19 @@
                 </button>`;
             
             if (!data.matches || data.matches.length === 0) {
-                 content += `<div class="text-center p-8"><h2 class="text-2xl font-bold text-gray-700">${data.name}</h2><p class="mt-4 text-gray-500">As chaves para este torneio ainda não foram geradas. Volte em breve!</p></div>`;
+                 content += `<div class="text-center p-8"><img src="${data.logoUrl || 'https://placehold.co/600x400/e2e8f0/64748b?text=Logo'}" alt="Logo" class="max-w-xs mx-auto rounded-xl mb-6" onerror="this.onerror=null;this.src='https://placehold.co/600x400/e2e8f0/64748b?text=Logo';"><h2 class="text-2xl font-bold text-gray-700">${data.name}</h2><p class="mt-4 text-gray-500">As chaves para este torneio ainda não foram geradas. Volte em breve!</p></div>`;
             } else if (data.status === 'knockout' || data.status === 'completed') {
                 content += renderPublicBrackets(data);
             } else {
                 content += `<h2 class="text-2xl font-bold">${data.name}</h2><p class="text-gray-600 mt-2">A visualização para o modo "${data.status}" ainda não está disponível.</p>`;
             }
             display.innerHTML = content;
-
-            const bracketContainer = display.querySelector('.bracket-container');
-            if (bracketContainer && bracketContainer.scrollWidth > bracketContainer.clientWidth) {
-                const scrollIndicator = display.querySelector('.scroll-indicator-wrapper');
-                if (scrollIndicator) scrollIndicator.classList.remove('hidden');
-            }
         }
 
         function renderPublicBrackets(data) {
             let bracketHTML = `
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
                      <h2 class="text-2xl sm:text-3xl font-bold text-gray-800">${data.name} - Chaveamento</h2>
-                     <div class="scroll-indicator-wrapper hidden sm:flex items-center space-x-2 text-sm text-gray-500 mt-2 sm:mt-0">
-                        <span>Rolar para ver mais</span>
-                        <svg class="w-5 h-5 scroll-indicator" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
-                     </div>
                 </div>
                 <div class="bracket-container">`;
 
@@ -204,6 +182,7 @@
             bracketHTML += `</div>`;
             return bracketHTML;
         }
+
     </script>
 </body>
 </html>
