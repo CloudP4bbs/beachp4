@@ -30,7 +30,6 @@
         import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, onSnapshot, doc, updateDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
-        // --- Configuração e Variáveis ---
         const firebaseConfig = {
           apiKey: "AIzaSyDEiEknWaOl2ra-it2dB8mFGPb9-Q__5-E",
           authDomain: "beachp4-70588.firebaseapp.com",
@@ -39,10 +38,9 @@
           messagingSenderId: "960018980292",
           appId: "1:960018980292:web:a11dbdd40811dec1ee5891"
         };
-        const appId = 'beach-tennis-v8';
+        const appId = 'beach-tennis-v9';
         let db, auth;
 
-        // --- Inicialização e Autenticação ---
         try {
             const app = initializeApp(firebaseConfig);
             db = getFirestore(app);
@@ -57,7 +55,6 @@
             }
         });
 
-        // --- Lógica de Partidas ---
         function listenForTournamentsWithMatches() {
             const tournamentsCol = collection(db, `artifacts/${appId}/public/data/tournaments`);
             onSnapshot(tournamentsCol, (snapshot) => {
@@ -79,17 +76,17 @@
                     tournamentDiv.className = 'bg-white p-6 rounded-xl shadow-md';
                     
                     let matchesHTML = t.matches
-                        .filter(m => !m.winner) // Mostra apenas partidas sem vencedor
+                        .filter(m => !m.winner && m.player1.id !== 'bye' && m.player2.id !== 'bye')
                         .map(m => `
                         <div class="grid grid-cols-3 items-center gap-4 border-b py-3">
-                            <div class="text-right">${m.player1.name}</div>
+                            <div class="text-right font-medium">${m.player1.name}</div>
                             <div class="flex justify-center items-center gap-2">
                                 <input type="number" id="score1-${t.id}-${m.matchNumber}" class="form-input-score" value="${m.score1 || ''}">
                                 <span>x</span>
                                 <input type="number" id="score2-${t.id}-${m.matchNumber}" class="form-input-score" value="${m.score2 || ''}">
-                                <button onclick="saveScore('${t.id}', ${m.matchNumber})" class="bg-blue-500 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-600">Salvar</button>
+                                <button onclick="saveScore('${t.id}', ${m.round}, ${m.matchNumber})" class="bg-blue-500 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-600">Salvar</button>
                             </div>
-                            <div>${m.player2.name}</div>
+                            <div class="font-medium">${m.player2.name}</div>
                         </div>
                     `).join('');
 
@@ -103,18 +100,12 @@
             });
         }
         
-        window.saveScore = async (tournamentId, matchNumber) => {
+        window.saveScore = async (tournamentId, round, matchNumber) => {
             const score1 = document.getElementById(`score1-${tournamentId}-${matchNumber}`).value;
             const score2 = document.getElementById(`score2-${tournamentId}-${matchNumber}`).value;
 
-            if (score1 === '' || score2 === '') {
-                alert("Preencha ambos os placares.");
-                return;
-            }
-             if (score1 === score2) {
-                alert("O placar não pode ser um empate.");
-                return;
-            }
+            if (score1 === '' || score2 === '') { alert("Preencha ambos os placares."); return; }
+            if (score1 === score2) { alert("O placar não pode ser um empate."); return; }
 
             const tournamentDocRef = doc(db, `artifacts/${appId}/public/data/tournaments`, tournamentId);
             const tournamentSnap = await getDoc(tournamentDocRef);
@@ -122,18 +113,36 @@
 
             const tournamentData = tournamentSnap.data();
             const matches = [...tournamentData.matches];
-            const matchIndex = matches.findIndex(m => m.matchNumber === matchNumber && m.round === 1); // Simplificado para 1a rodada por enquanto
+            const matchIndex = matches.findIndex(m => m.matchNumber === matchNumber && m.round === round);
             if(matchIndex === -1) return;
 
             const match = matches[matchIndex];
             match.score1 = score1;
             match.score2 = score2;
-            match.winner = parseInt(score1) > parseInt(score2) ? match.player1.id : match.player2.id;
+            const winner = parseInt(score1) > parseInt(score2) ? match.player1 : match.player2;
+            match.winner = winner.id;
             
-            // Lógica para avançar vencedor (a ser implementada de forma mais robusta)
-            // Esta é uma implementação simplificada que não cria as próximas rodadas
+            // Lógica para avançar vencedor
+            const nextRound = round + 1;
+            const nextMatchNumber = Math.ceil(matchNumber / 2);
+            const nextMatchIndex = matches.findIndex(m => m.round === nextRound && m.matchNumber === nextMatchNumber);
             
-            await updateDoc(tournamentDocRef, { matches: matches });
+            if (nextMatchIndex !== -1) {
+                // Se for partida ímpar na rodada, preenche player1. Se for par, preenche player2.
+                if (matchNumber % 2 === 1) {
+                    matches[nextMatchIndex].player1 = winner;
+                } else {
+                    matches[nextMatchIndex].player2 = winner;
+                }
+            } else if (matches.filter(m => m.winner).length === matches.length) {
+                // Se for a última partida, finaliza o torneio
+                tournamentData.status = 'completed';
+            }
+            
+            await updateDoc(tournamentDocRef, { 
+                matches: matches,
+                status: tournamentData.status // Atualiza o status se o torneio acabou
+            });
         }
     </script>
 </body>
