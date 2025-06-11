@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciador de Torneios de Beach Tennis V3</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        /* Estilos Gerais */
+        body { font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+        .view { display: none; }
+        .active-view { display: block; }
+        .main-tab-button.active { background-color: #3b82f6; color: #ffffff; }
+        .admin-tab-button.active { border-bottom-color: #3b82f6; color: #3b82f6; font-weight: 600; }
+
+        /* Estilos para a Chave Eliminatória (Bracket) */
+        .bracket-container { overflow-x: auto; padding: 20px 0; }
+        .bracket { display: flex; justify-content: flex-start; min-width: max-content; }
+        .round { display: flex; flex-direction: column; justify-content: space-around; width: 250px; margin: 0 30px; }
+        .round-title { text-align: center; font-size: 1.1rem; font-weight: 700; color: #374151; margin-bottom: 20px; }
+        .match { display: flex; flex-direction: column; background-color: white; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06); margin: 20px 0; position: relative; transition: transform 0.2s; }
+        .match:hover { transform: translateY(-2px); }
+        .match-content { flex-grow: 1; display: flex; flex-direction: column; }
+        .player { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid #e5e7eb; }
+        .player:last-child { border-bottom: none; }
+        .player-name { font-size: 0.9rem; font-weight: 500; }
+        .player-score { font-size: 0.9rem; font-weight: 700; }
+        .winner .player-name { font-weight: 700; color: #16a34a; }
+        .winner .player-score { color: #16a34a; }
+        .match-connector { position: absolute; top: 50%; left: 100%; width: 30px; height: 2px; background-color: #d1d5db; }
+        .match-connector-line { position: absolute; left: 0; width: 100%; height: 50%; border-color: #d1d5db; }
+        .match-connector.up .match-connector-line { top: 0; border-width: 0 2px 2px 0; border-bottom-right-radius: 8px; }
+        .match-connector.down .match-connector-line { bottom: 0; border-width: 2px 2px 0 0; border-top-right-radius: 8px; }
+        .champion-box { text-align: center; padding: 20px; }
+        .champion-name { font-size: 1.5rem; font-weight: 800; color: #ca8a04; }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <!-- Container Principal -->
+    <div id="app" class="container mx-auto p-4 md:p-6">
+        <!-- Header -->
+        <header class="bg-white rounded-xl shadow-lg p-5 mb-6 flex justify-between items-center">
+            <div class="flex items-center gap-4">
+                <i class="fas fa-table-tennis text-blue-600 text-4xl"></i>
+                <div>
+                    <h1 class="text-3xl font-extrabold text-gray-800">Beach Tennis Manager</h1>
+                    <p class="text-gray-500">A plataforma completa para seus torneios</p>
+                </div>
+            </div>
+            <div id="auth-container">
+                 <button id="login-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-all transform hover:scale-105">
+                    <i class="fas fa-user-shield mr-2"></i> Admin Login
+                </button>
+                <div id="admin-info" class="hidden items-center gap-4">
+                    <span id="admin-email" class="font-semibold text-gray-700 hidden sm:inline"></span>
+                    <button id="logout-btn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg shadow-sm transition-all transform hover:scale-105">
+                        <i class="fas fa-sign-out-alt sm:mr-2"></i> <span class="hidden sm:inline">Logout</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+        
+        <!-- Abas de Navegação Principal -->
+        <div class="mb-6">
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-2 bg-white p-2 rounded-xl shadow-md">
+                <button onclick="switchMainTab('tournaments')" class="main-tab-button flex items-center justify-center text-center py-3 px-4 rounded-lg font-semibold text-gray-600 hover:bg-blue-100 active" data-main-tab="tournaments">
+                    <i class="fas fa-trophy mr-2"></i>Torneios
+                </button>
+                <button onclick="switchMainTab('ranking')" class="main-tab-button flex items-center justify-center text-center py-3 px-4 rounded-lg font-semibold text-gray-600 hover:bg-blue-100" data-main-tab="ranking">
+                   <i class="fas fa-star mr-2"></i>Ranking
+                </button>
+                 <button id="admin-main-tab" onclick="switchMainTab('admin')" class="main-tab-button md:col-auto col-span-2 flex items-center justify-center text-center py-3 px-4 rounded-lg font-semibold text-gray-600 hover:bg-blue-100 hidden" data-main-tab="admin">
+                   <i class="fas fa-cogs mr-2"></i>Painel Admin
+                </button>
+            </div>
+        </div>
+
+        <!-- Conteúdo Principal -->
+        <main id="main-content">
+            <!-- As views serão renderizadas aqui pelo JavaScript -->
+        </main>
+    </div>
+    
+    <!-- Modais (Login e Placar) -->
+    <div id="modal-container"></div>
+    
+    <!-- Templates HTML para renderização dinâmica -->
+    <template id="tournaments-view-template">
+        <div id="tournaments-list-container" class="active-view">
+            <h2 class="text-3xl font-bold mb-6 text-gray-700">Torneios Ativos</h2>
+            <div id="user-tournaments-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+            <p id="no-tournaments-msg" class="text-gray-500 mt-4 hidden">Nenhum torneio encontrado.</p>
+        </div>
+        <div id="user-tournament-details" class="bg-white rounded-xl shadow-lg p-4 sm:p-6 hidden"></div>
+    </template>
+    
+    <template id="ranking-view-template">
+        <div class="bg-white rounded-xl shadow-lg p-4 sm:p-6">
+            <h2 class="text-3xl font-bold mb-6 text-gray-700">Ranking Geral de Atletas</h2>
+            <div class="overflow-x-auto">
+                <table class="min-w-full bg-white">
+                    <thead class="bg-gray-800 text-white">
+                        <tr>
+                            <th class="w-1/12 text-left py-3 px-4 uppercase font-semibold text-sm rounded-tl-lg">#</th>
+                            <th class="w-8/12 text-left py-3 px-4 uppercase font-semibold text-sm">Atleta/Dupla</th>
+                            <th class="w-3/12 text-left py-3 px-4 uppercase font-semibold text-sm rounded-tr-lg">Pontos</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ranking-table-body" class="text-gray-700"></tbody>
+                </table>
+            </div>
+        </div>
+    </template>
+    
+    <template id="admin-view-template">
+        <div class="bg-white rounded-xl shadow-lg p-4 sm:p-6">
+            <div class="border-b border-gray-200 mb-6">
+                <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+                    <button onclick="switchAdminTab('tournaments')" class="admin-tab-button whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-gray-500 hover:text-blue-600 hover:border-blue-300 active" data-admin-tab="tournaments"><i class="fas fa-trophy mr-2"></i>Gerenciar Torneios</button>
+                    <button onclick="switchAdminTab('players')" class="admin-tab-button whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-gray-500 hover:text-blue-600 hover:border-blue-300" data-admin-tab="players"><i class="fas fa-users mr-2"></i>Gerenciar Atletas</button>
+                    <button onclick="switchAdminTab('matches')" class="admin-tab-button whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-gray-500 hover:text-blue-600 hover:border-blue-300" data-admin-tab="matches"><i class="fas fa-table-tennis mr-2"></i>Gerenciar Partidas</button>
+                </nav>
+            </div>
+            <div id="admin-content-area"></div>
+        </div>
+    </template>
+
+    <template id="admin-tournaments-content-template">
+         <h3 class="text-2xl font-bold mb-4">Criar Novo Torneio</h3>
+         <form id="create-tournament-form" class="space-y-4 bg-gray-50 p-6 rounded-lg border">
+            <input type="text" id="tournament-name" placeholder="Nome do Torneio" class="w-full p-3 border rounded-md" required>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <select id="tournament-type" class="w-full p-3 border rounded-md"><option value="1x1">Simples (1x1)</option><option value="2x2">Duplas (2x2)</option></select>
+                <select id="tournament-category" class="w-full p-3 border rounded-md"><option value="A">Cat. A</option><option value="B">Cat. B</option><option value="C">Cat. C</option><option value="D">Cat. D</option></select>
+                <select id="tournament-age" class="w-full p-3 border rounded-md"><option value="Adulto">Adulto</option><option value="Infantil">Infantil</option></select>
+                <select id="tournament-gender" class="w-full p-3 border rounded-md"><option value="Masculino">Masculino</option><option value="Feminino">Feminino</option><option value="Misto">Misto</option></select>
+            </div>
+            <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition-transform transform hover:scale-102">Criar Torneio</button>
+         </form>
+         <h3 class="text-2xl font-bold mt-8 mb-4">Torneios Existentes</h3>
+         <div id="admin-tournaments-list" class="space-y-3"></div>
+    </template>
+
+    <template id="admin-players-content-template">
+        <h3 class="text-2xl font-bold mb-4">Gerenciar Atletas</h3>
+        <div class="space-y-4 bg-gray-50 p-6 rounded-lg border">
+            <label for="player-tournament-select" class="block font-medium">Selecione um Torneio:</label>
+            <select id="player-tournament-select" class="w-full p-3 border rounded-md"></select>
+        </div>
+         <div id="player-management-area" class="mt-6 hidden">
+            <form id="add-player-form" class="space-y-4 mt-4">
+               <input type="text" id="player-name" placeholder="Nome do Atleta/Dupla" class="w-full p-3 border rounded-md" required>
+               <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md">Adicionar Atleta/Dupla</button>
+            </form>
+            <h4 class="text-xl font-bold mt-6 mb-2">Atletas Inscritos</h4>
+            <div id="players-list" class="space-y-2"></div>
+        </div>
+    </template>
+
+    <template id="admin-matches-content-template">
+         <h3 class="text-2xl font-bold mb-4">Gerenciar Partidas</h3>
+         <div class="space-y-4 bg-gray-50 p-6 rounded-lg border">
+            <label for="match-tournament-select" class="block font-medium">Selecione um Torneio:</label>
+            <select id="match-tournament-select" class="w-full p-3 border rounded-md"></select>
+        </div>
+        <div id="match-management-area" class="mt-6 hidden">
+            <div id="tournament-controls" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6"></div>
+            <div id="matches-list-container" class="space-y-6"></div>
+        </div>
+    </template>
+    
+    <template id="auth-modal-template">
+        <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4" id="auth-modal">
+            <div class="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md transform transition-all" id="auth-modal-content">
+                <div class="flex justify-between items-start mb-6">
+                    <h3 id="auth-title" class="text-2xl font-bold">Admin Login</h3>
+                    <button onclick="closeAuthModal()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+                </div>
+                <form id="login-form">
+                    <input type="email" id="login-email-input" class="w-full p-3 border-gray-300 border rounded-md mb-4 focus:ring-blue-500 focus:border-blue-500" placeholder="Email" required>
+                    <input type="password" id="login-password-input" class="w-full p-3 border-gray-300 border rounded-md mb-4 focus:ring-blue-500 focus:border-blue-500" placeholder="Senha" required>
+                    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-lg transition-all">Entrar</button>
+                </form>
+                <form id="register-form" class="hidden">
+                     <input type="email" id="register-email-input" class="w-full p-3 border-gray-300 border rounded-md mb-4 focus:ring-green-500 focus:border-green-500" placeholder="Email" required>
+                    <input type="password" id="register-password-input" class="w-full p-3 border-gray-300 border rounded-md mb-4 focus:ring-green-500 focus:border-green-500" placeholder="Senha (mínimo 6 caracteres)" required>
+                    <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg shadow-lg transition-all">Registrar</button>
+                </form>
+                <p id="auth-error" class="text-red-500 text-sm mt-4 text-center h-4"></p>
+                <p class="text-center mt-4 text-sm">
+                    <a href="#" id="auth-switch-link" class="text-blue-600 hover:underline">Não tem uma conta? Registre-se</a>
+                </p>
+            </div>
+        </div>
+    </template>
+
+    <template id="score-modal-template">
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" id="score-modal">
+            <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+                <h3 class="text-xl font-bold mb-6">Atualizar Placar</h3>
+                <form id="update-score-form">
+                    <input type="hidden" id="modal-tournament-id"><input type="hidden" id="modal-match-id"><input type="hidden" id="modal-match-stage">
+                    <div class="grid grid-cols-2 gap-4 items-end">
+                        <div class="text-center">
+                            <label id="player1-name-label" class="block font-semibold mb-2"></label>
+                            <input type="number" id="player1-score" class="w-full p-3 text-center text-2xl font-bold border rounded-md" min="0" required>
+                        </div>
+                        <div class="text-center">
+                            <label id="player2-name-label" class="block font-semibold mb-2"></label>
+                             <input type="number" id="player2-score" class="w-full p-3 text-center text-2xl font-bold border rounded-md" min="0" required>
+                        </div>
+                    </div>
+                    <div class="mt-8 flex justify-end space-x-4">
+                        <button type="button" onclick="closeScoreModal()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg">Cancelar</button>
+                        <button type="submit" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg">Salvar Placar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </template>
+    
+    <!-- Firebase SDKs -->
+    <script type="module">
+        // Importações do Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, getDocs, doc, onSnapshot, deleteDoc, updateDoc, query, where, getDoc, writeBatch, serverTimestamp, orderBy, limit, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // ** SUA CONFIGURAÇÃO DO FIREBASE FOI INSERIDA AQUI **
+        const firebaseConfig = {
+          apiKey: "AIzaSyDEiEknWaOl2ra-it2dB8mFGPb9-Q__5-E",
+          authDomain: "beachp4-70588.firebaseapp.com",
+          projectId: "beachp4-70588",
+          storageBucket: "beachp4-70588.appspot.com",
+          messagingSenderId: "960018980292",
+          appId: "1:960018980292:web:a11dbdd40811dec1ee5891"
+        };
+        
+        // Inicialização do Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        
+        // Estado da Aplicação
+        let currentUser = null;
+        let currentAdminTournamentId = null;
+        let unsubscribes = [];
+
+        // Elementos Globais
+        const mainContent = document.getElementById('main-content');
+        const modalContainer = document.getElementById('modal-container');
+        
+        // ---- LÓGICA DE AUTENTICAÇÃO ----
+        
+        onAuthStateChanged(auth, (user) => {
+            currentUser = user;
+            const adminInfo = document.getElementById('admin-info');
+            const loginBtn = document.getElementById('login-btn');
+            const adminMainTab = document.getElementById('admin-main-tab');
+
+            if (user) {
+                adminInfo.classList.remove('hidden');
+                adminInfo.classList.add('flex');
+                loginBtn.classList.add('hidden');
+                document.getElementById('admin-email').textContent = user.email;
+                adminMainTab.classList.remove('hidden');
+            } else {
+                adminInfo.classList.add('hidden');
+                loginBtn.classList.remove('hidden');
+                adminMainTab.classList.add('hidden');
+                if(document.querySelector('.main-tab-button[data-main-tab="admin"].active')) {
+                    switchMainTab('tournaments');
+                }
+            }
+        });
+
+        const openAuthModal = () => {
+            modalContainer.innerHTML = document.getElementById('auth-modal-template').innerHTML;
+            const modal = document.getElementById('auth-modal');
+            
+            // Adiciona Event Listeners ao novo conteúdo do modal
+            document.getElementById('login-form').addEventListener('submit', handleLogin);
+            document.getElementById('register-form').addEventListener('submit', handleRegister);
+            document.getElementById('auth-switch-link').addEventListener('click', switchAuthForm);
+        };
+        
+        window.closeAuthModal = () => { modalContainer.innerHTML = ''; };
+
+        const handleLogin = async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('login-email-input').value;
+            const password = document.getElementById('login-password-input').value;
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+                closeAuthModal();
+            } catch (error) {
+                document.getElementById('auth-error').textContent = "Email ou senha inválidos.";
+            }
+        };
+
+        const handleRegister = async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('register-email-input').value;
+            const password = document.getElementById('register-password-input').value;
+            if (password.length < 6) {
+                document.getElementById('auth-error').textContent = "A senha deve ter pelo menos 6 caracteres.";
+                return;
+            }
+            try {
+                await createUserWithEmailAndPassword(auth, email, password);
+                closeAuthModal();
+            } catch (error) {
+                document.getElementById('auth-error').textContent = "Erro ao registrar. Tente outro email.";
+            }
+        };
+        
+        const switchAuthForm = (e) => {
+            e.preventDefault();
+            document.getElementById('login-form').classList.toggle('hidden');
+            document.getElementById('register-form').classList.toggle('hidden');
+            const isLogin = document.getElementById('login-form').classList.contains('hidden');
+            document.getElementById('auth-title').textContent = isLogin ? 'Registrar Admin' : 'Admin Login';
+            e.target.textContent = isLogin ? 'Já tem uma conta? Faça login' : 'Não tem uma conta? Registre-se';
+        };
+
+        document.getElementById('login-btn').addEventListener('click', openAuthModal);
+        document.getElementById('logout-btn').addEventListener('click', () => signOut(auth));
+
+        // ---- LÓGICA DE NAVEGAÇÃO E RENDERIZAÇÃO ----
+        
+        const clearListeners = () => {
+            unsubscribes.forEach(unsub => unsub());
+            unsubscribes = [];
+        };
+        
+        window.switchMainTab = (tabName) => {
+            document.querySelectorAll('.main-tab-button').forEach(btn => btn.classList.remove('active'));
+            document.querySelector(`.main-tab-button[data-main-tab='${tabName}']`).classList.add('active');
+            
+            clearListeners();
+            switch(tabName) {
+                case 'tournaments':
+                    renderTournamentsView();
+                    break;
+                case 'ranking':
+                    renderRankingView();
+                    break;
+                case 'admin':
+                    renderAdminView();
+                    break;
+            }
+        };
+        
+        // ---- RENDERIZAÇÃO DAS VIEWS PRINCIPAIS ----
+
+        function renderTournamentsView() {
+            mainContent.innerHTML = document.getElementById('tournaments-view-template').innerHTML;
+            const unsub = onSnapshot(query(collection(db, "tournaments"), orderBy("createdAt", "desc")), (snapshot) => {
+                const listEl = document.getElementById('user-tournaments-list');
+                if(!listEl) return;
+                listEl.innerHTML = '';
+                document.getElementById('no-tournaments-msg').classList.toggle('hidden', !snapshot.empty);
+                snapshot.forEach(doc => {
+                    listEl.innerHTML += createUserTournamentCard(doc.id, doc.data());
+                });
+            });
+            unsubscribes.push(unsub);
+        }
+
+        function renderRankingView() {
+            mainContent.innerHTML = document.getElementById('ranking-view-template').innerHTML;
+            const q = query(collection(db, "ranking"), orderBy("points", "desc"));
+            const unsub = onSnapshot(q, (snapshot) => {
+                const tableBody = document.getElementById('ranking-table-body');
+                if (!tableBody) return;
+                tableBody.innerHTML = '';
+                let rank = 1;
+                snapshot.forEach(doc => {
+                    const player = doc.data();
+                    const row = `
+                        <tr class="border-b border-gray-200 hover:bg-gray-100">
+                            <td class="py-3 px-4 font-bold">${rank++}</td>
+                            <td class="py-3 px-4">${doc.id}</td>
+                            <td class="py-3 px-4 font-semibold">${player.points}</td>
+                        </tr>`;
+                    tableBody.innerHTML += row;
+                });
+            });
+            unsubscribes.push(unsub);
+        }
+        
+        function renderAdminView() {
+            mainContent.innerHTML = document.getElementById('admin-view-template').innerHTML;
+            switchAdminTab('tournaments');
+        }
+
+        window.switchAdminTab = (tabName) => {
+            document.querySelectorAll('.admin-tab-button').forEach(btn => btn.classList.remove('active'));
+            document.querySelector(`.admin-tab-button[data-admin-tab='${tabName}']`).classList.add('active');
+            
+            const contentArea = document.getElementById('admin-content-area');
+            if (!contentArea) return;
+
+            clearListeners();
+            contentArea.innerHTML = document.getElementById(`admin-${tabName}-content-template`).innerHTML;
+
+            switch(tabName) {
+                case 'tournaments':
+                    setupAdminTournamentsTab();
+                    break;
+                case 'players':
+                    setupAdminPlayersTab();
+                    break;
+                case 'matches':
+                    setupAdminMatchesTab();
+                    break;
+            }
+        };
+
+
+        // ---- LÓGICA DO PAINEL ADMIN ----
+
+        // ABA TORNEIOS
+        function setupAdminTournamentsTab() {
+            document.getElementById('create-tournament-form').addEventListener('submit', createTournament);
+            const unsub = onSnapshot(query(collection(db, "tournaments"), orderBy("createdAt", "desc")), (snapshot) => {
+                const listEl = document.getElementById('admin-tournaments-list');
+                if(!listEl) return;
+                listEl.innerHTML = '';
+                snapshot.forEach(doc => {
+                    listEl.innerHTML += createAdminTournamentCard(doc.id, doc.data());
+                });
+            });
+            unsubscribes.push(unsub);
+        }
+
+        async function createTournament(e) {
+            e.preventDefault();
+            const form = e.target;
+            const name = form.querySelector('#tournament-name').value;
+            const type = form.querySelector('#tournament-type').value;
+            const category = form.querySelector('#tournament-category').value;
+            const age = form.querySelector('#tournament-age').value;
+            const gender = form.querySelector('#tournament-gender').value;
+
+            try {
+                await addDoc(collection(db, "tournaments"), {
+                    name, type, category, age, gender,
+                    status: 'Inscrições Abertas',
+                    createdAt: serverTimestamp()
+                });
+                form.reset();
+            } catch (error) { console.error("Erro ao criar torneio:", error); }
+        }
+
+        window.deleteTournament = async (id) => {
+            if (confirm("Tem certeza? Todos os dados (atletas, partidas) serão apagados permanentemente.")) {
+                await deleteDoc(doc(db, "tournaments", id));
+            }
+        }
+
+        // ABA ATLETAS
+        function setupAdminPlayersTab() {
+            const selectEl = document.getElementById('player-tournament-select');
+            loadTournamentsIntoSelect(selectEl, () => {
+                selectEl.addEventListener('change', (e) => {
+                    currentAdminTournamentId = e.target.value;
+                    const managementArea = document.getElementById('player-management-area');
+                    managementArea.classList.toggle('hidden', !currentAdminTournamentId);
+                    if(currentAdminTournamentId) {
+                        document.getElementById('add-player-form').addEventListener('submit', addPlayer);
+                        listenToPlayers(currentAdminTournamentId);
+                    }
+                });
+            });
+        }
+        
+        async function addPlayer(e) {
+            e.preventDefault();
+            const nameInput = document.getElementById('player-name');
+            const playerName = nameInput.value.trim();
+            if (!currentAdminTournamentId || !playerName) return;
+
+            const playerRef = doc(db, `tournaments/${currentAdminTournamentId}/players`, playerName);
+            try {
+                await setDoc(playerRef, { name: playerName }); // Usar nome como ID para evitar duplicatas
+                nameInput.value = '';
+            } catch (error) { console.error("Erro ao adicionar atleta:", error); }
+        }
+        
+        function listenToPlayers(tournamentId) {
+            const q = query(collection(db, `tournaments/${tournamentId}/players`), orderBy("name"));
+            const unsub = onSnapshot(q, (snapshot) => {
+                const listEl = document.getElementById('players-list');
+                if (!listEl) return;
+                listEl.innerHTML = '';
+                snapshot.forEach(doc => {
+                    listEl.innerHTML += createPlayerItem(doc.id);
+                });
+            });
+            unsubscribes.push(unsub);
+        }
+
+        window.deletePlayer = async (playerName) => {
+            if (confirm(`Remover ${playerName}?`)) {
+                 await deleteDoc(doc(db, `tournaments/${currentAdminTournamentId}/players`, playerName));
+            }
+        };
+
+        // ABA PARTIDAS
+        function setupAdminMatchesTab() {
+            const selectEl = document.getElementById('match-tournament-select');
+            loadTournamentsIntoSelect(selectEl, () => {
+                selectEl.addEventListener('change', (e) => {
+                    currentAdminTournamentId = e.target.value;
+                    const managementArea = document.getElementById('match-management-area');
+                    managementArea.classList.toggle('hidden', !currentAdminTournamentId);
+                    if (currentAdminTournamentId) listenToTournamentState(currentAdminTournamentId);
+                });
+            });
+        }
+
+        function listenToTournamentState(tournamentId) {
+             const unsub = onSnapshot(doc(db, "tournaments", tournamentId), (doc) => {
+                if (!doc.exists()) return;
+                const tournament = doc.data();
+                renderTournamentControls(tournamentId, tournament.status);
+                renderMatchesList(tournamentId, tournament.status);
+            });
+            unsubscribes.push(unsub);
+        }
+
+        // ---- LÓGICA DE GERAÇÃO DE PARTIDAS E FASES ----
+
+        window.generateGroupStage = async (tournamentId) => {
+            if (!confirm('Isso irá gerar a fase de grupos. As inscrições serão encerradas. Continuar?')) return;
+            
+            const playersSnapshot = await getDocs(collection(db, `tournaments/${tournamentId}/players`));
+            const players = playersSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+            
+            if (players.length < 3) {
+                alert('São necessários pelo menos 3 atletas/duplas.');
+                return;
+            }
+
+            const groups = generateGroups(players);
+            const matches = generateGroupMatches(groups);
+            
+            const batch = writeBatch(db);
+            matches.forEach(match => {
+                const matchRef = doc(collection(db, `tournaments/${tournamentId}/matches`));
+                batch.set(matchRef, match);
+            });
+            const tournamentRef = doc(db, "tournaments", tournamentId);
+            batch.update(tournamentRef, { status: "Fase de Grupos" });
+            
+            await batch.commit();
+        };
+
+        window.generateKnockoutStage = async (tournamentId) => {
+            if (!confirm('Isso irá finalizar a fase de grupos e gerar o mata-mata. Continuar?')) return;
+
+            const groupMatchesSnapshot = await getDocs(query(collection(db, `tournaments/${tournamentId}/matches`), where("stage", "==", "Grupos")));
+            
+            const allGroupMatchesPlayed = groupMatchesSnapshot.docs.every(doc => doc.data().status === 'Finalizado');
+            if (!allGroupMatchesPlayed) {
+                alert('Ainda há partidas da fase de grupos pendentes. Finalize todas antes de prosseguir.');
+                return;
+            }
+
+            const standings = calculateGroupStandings(groupMatchesSnapshot.docs);
+            const qualifiedPlayers = getQualifiedPlayers(standings);
+            
+            let nextStage = '';
+            if (qualifiedPlayers.length <= 2) nextStage = 'Final';
+            else if (qualifiedPlayers.length <= 4) nextStage = 'Semifinal';
+            else if (qualifiedPlayers.length <= 8) nextStage = 'Quartas';
+            else {
+                 alert(`Não há suporte para mata-mata com ${qualifiedPlayers.length} jogadores. Suportado até 8.`);
+                 return;
+            }
+
+            const knockoutMatches = createKnockoutBracket(qualifiedPlayers, nextStage);
+
+            const batch = writeBatch(db);
+            let matchDependencies = {};
+            
+            knockoutMatches.filter(m => m.round === 1).forEach(match => {
+                 const matchRef = doc(collection(db, `tournaments/${tournamentId}/matches`));
+                 batch.set(matchRef, match);
+                 if (!matchDependencies[match.stage]) matchDependencies[match.stage] = [];
+                 matchDependencies[match.stage].push({id: matchRef.id});
+            });
+            
+            let currentStage = nextStage;
+            let currentRoundPlayers = knockoutMatches.filter(m => m.round === 1).length;
+
+            while (currentRoundPlayers > 1) {
+                let nextRoundMatches = [];
+                const nextStageName = currentStage === 'Quartas' ? 'Semifinal' : 'Final';
+                for(let i = 0; i < matchDependencies[currentStage].length; i += 2) {
+                    const match1 = matchDependencies[currentStage][i];
+                    const match2 = matchDependencies[currentStage][i+1];
+                    const newMatch = {
+                        player1: {id: 'A definir', name: 'A definir'}, player2: {id: 'A definir', name: 'A definir'},
+                        score1: null, score2: null, status: 'Pendente', stage: nextStageName,
+                        dependsOn: [match1.id, match2.id]
+                    };
+                    nextRoundMatches.push(newMatch);
+                }
+                
+                if (!matchDependencies[nextStageName]) matchDependencies[nextStageName] = [];
+                nextRoundMatches.forEach(match => {
+                    const matchRef = doc(collection(db, `tournaments/${tournamentId}/matches`));
+                    batch.set(matchRef, match);
+                    matchDependencies[nextStageName].push({id: matchRef.id});
+                });
+                
+                currentStage = nextStageName;
+                currentRoundPlayers /= 2;
+            }
+
+            const tournamentRef = doc(db, "tournaments", tournamentId);
+            batch.update(tournamentRef, { status: "Mata-Mata" });
+            await batch.commit();
+        };
+        
+        window.finishTournament = async (tournamentId) => {
+             if (!confirm('Isso finalizará o torneio e distribuirá os pontos no ranking. Continuar?')) return;
+             
+             const q = query(collection(db, `tournaments/${tournamentId}/matches`), where("stage", "==", "Final"));
+             const finalSnapshot = await getDocs(q);
+             if (finalSnapshot.empty || finalSnapshot.docs[0].data().status !== 'Finalizado') {
+                 alert('A partida final ainda não foi concluída.');
+                 return;
+             }
+             
+             const finalMatch = finalSnapshot.docs[0].data();
+             const winner = finalMatch.score1 > finalMatch.score2 ? finalMatch.player1 : finalMatch.player2;
+             const loser = finalMatch.score1 < finalMatch.score2 ? finalMatch.player1 : finalMatch.player2;
+             
+             await updateRanking(winner.name, 100);
+             await updateRanking(loser.name, 50);
+             
+             await updateDoc(doc(db, "tournaments", tournamentId), {
+                 status: "Finalizado",
+                 winner: winner.name
+             });
+        };
+        
+        async function updateRanking(playerName, pointsToAdd) {
+            if (playerName === 'BYE' || playerName === 'A definir') return;
+            const playerRef = doc(db, "ranking", playerName);
+            const playerDoc = await getDoc(playerRef);
+            const currentPoints = playerDoc.exists() ? playerDoc.data().points : 0;
+            await setDoc(playerRef, { points: currentPoints + pointsToAdd });
+        }
+
+
+        // ---- LÓGICA DE PLACAR ----
+
+        window.openScoreModal = (tournamentId, matchId, stage, p1Name, p2Name) => {
+            modalContainer.innerHTML = document.getElementById('score-modal-template').innerHTML;
+            document.getElementById('modal-tournament-id').value = tournamentId;
+            document.getElementById('modal-match-id').value = matchId;
+            document.getElementById('modal-match-stage').value = stage;
+            document.getElementById('player1-name-label').innerText = p1Name;
+            document.getElementById('player2-name-label').innerText = p2Name;
+            document.getElementById('update-score-form').addEventListener('submit', updateScore);
+        };
+        
+        window.closeScoreModal = () => { modalContainer.innerHTML = ''; };
+
+        async function updateScore(e) {
+            e.preventDefault();
+            const tournamentId = document.getElementById('modal-tournament-id').value;
+            const matchId = document.getElementById('modal-match-id').value;
+            const stage = document.getElementById('modal-match-stage').value;
+            const score1 = parseInt(document.getElementById('player1-score').value);
+            const score2 = parseInt(document.getElementById('player2-score').value);
+
+            if (score1 === score2) {
+                alert("O placar não pode ser um empate.");
+                return;
+            }
+
+            const matchRef = doc(db, `tournaments/${tournamentId}/matches`, matchId);
+            await updateDoc(matchRef, { score1, score2, status: 'Finalizado' });
+
+            if (stage !== 'Grupos') {
+                await advanceWinner(tournamentId, matchId);
+            }
+
+            closeScoreModal();
+        }
+        
+        async function advanceWinner(tournamentId, finishedMatchId) {
+            const finishedMatchDoc = await getDoc(doc(db, `tournaments/${tournamentId}/matches`, finishedMatchId));
+            if(!finishedMatchDoc.exists()) return;
+
+            const finishedMatchData = finishedMatchDoc.data();
+            const winner = finishedMatchData.score1 > finishedMatchData.score2 ? finishedMatchData.player1 : finishedMatchData.player2;
+
+            const nextMatchQuery = query(
+                collection(db, `tournaments/${tournamentId}/matches`),
+                where("dependsOn", "array-contains", finishedMatchId)
+            );
+            
+            const nextMatchSnapshot = await getDocs(nextMatchQuery);
+            if (!nextMatchSnapshot.empty) {
+                const nextMatchDoc = nextMatchSnapshot.docs[0];
+                const nextMatchData = nextMatchDoc.data();
+                
+                const updateData = {};
+                if(nextMatchData.player1.id === 'A definir') {
+                    updateData.player1 = winner;
+                } else if (nextMatchData.player2.id === 'A definir') {
+                    updateData.player2 = winner;
+                }
+
+                if (Object.keys(updateData).length > 0) {
+                     await updateDoc(doc(db, `tournaments/${tournamentId}/matches`, nextMatchDoc.id), updateData);
+                }
+            }
+        }
+
+
+        // ---- FUNÇÕES UTILITÁRIAS E DE RENDERIZAÇÃO ----
+
+        function getStatusInfo(status) {
+            const statusStyles = {
+                'Inscrições Abertas': 'bg-blue-100 text-blue-800', 'Fase de Grupos': 'bg-yellow-100 text-yellow-800',
+                'Mata-Mata': 'bg-purple-100 text-purple-800', 'Finalizado': 'bg-green-100 text-green-800'
+            };
+            return { text: status, style: statusStyles[status] || 'bg-gray-100 text-gray-800' };
+        }
+        
+        async function loadTournamentsIntoSelect(selectEl, callback) {
+            const q = query(collection(db, "tournaments"), orderBy("createdAt", "desc"));
+            const snapshot = await getDocs(q);
+            selectEl.innerHTML = '<option value="">Selecione um torneio...</option>';
+            snapshot.forEach((doc) => {
+                selectEl.innerHTML += `<option value="${doc.id}">${doc.data().name}</option>`;
+            });
+            if (callback) callback();
+        }
+        
+        function createUserTournamentCard(id, data) {
+            const statusInfo = getStatusInfo(data.status);
+            return `
+                <div onclick="showTournamentDetails('${id}')" class="bg-white p-6 rounded-xl shadow-lg hover:shadow-2xl hover:-translate-y-1 transition-all cursor-pointer">
+                    <div class="flex justify-between items-start">
+                        <h3 class="font-bold text-xl mb-2 text-blue-800">${data.name}</h3>
+                        <span class="text-xs font-semibold px-2.5 py-1 rounded-full ${statusInfo.style}">${statusInfo.text}</span>
+                    </div>
+                    <p class="text-gray-600 text-sm"><i class="fas fa-tags mr-2 opacity-60"></i> ${data.category} / ${data.gender} / ${data.age}</p>
+                    <p class="text-gray-600 text-sm"><i class="fas fa-info-circle mr-2 opacity-60"></i> ${data.type}</p>
+                </div>`;
+        }
+        
+        function createAdminTournamentCard(id, data) {
+            return `
+                <div class="flex justify-between items-center bg-gray-100 p-3 rounded-lg border">
+                    <div>
+                        <p class="font-semibold">${data.name}</p>
+                        <p class="text-sm text-gray-600">${data.category} - ${data.gender} - <span class="font-medium">${data.status}</span></p>
+                    </div>
+                    <button onclick="deleteTournament('${id}')" class="text-red-500 hover:text-red-700 font-bold py-1 px-3 rounded"><i class="fas fa-trash"></i></button>
+                </div>`;
+        }
+
+        function createPlayerItem(playerName) {
+            return `<div class="flex justify-between items-center bg-white p-2 rounded shadow-sm border"><span>${playerName}</span><button onclick="deletePlayer('${playerName}')" class="text-red-500 hover:text-red-700 text-sm"><i class="fas fa-trash"></i></button></div>`;
+        }
+        
+        function renderTournamentControls(tournamentId, status) {
+            const controlsContainer = document.getElementById('tournament-controls');
+            if(!controlsContainer) return;
+            let buttons = '';
+            if (status === 'Inscrições Abertas') {
+                buttons = `<button onclick="generateGroupStage('${tournamentId}')" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-4 rounded-lg shadow-md col-span-full">Iniciar Fase de Grupos</button>`;
+            } else if (status === 'Fase de Grupos') {
+                buttons = `<button onclick="generateKnockoutStage('${tournamentId}')" class="bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 px-4 rounded-lg shadow-md col-span-full">Iniciar Mata-Mata</button>`;
+            } else if (status === 'Mata-Mata') {
+                buttons = `<button onclick="finishTournament('${tournamentId}')" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg shadow-md col-span-full">Finalizar Torneio e Pontuar</button>`;
+            } else {
+                 buttons = `<p class="text-center font-semibold text-green-700 col-span-full">Este torneio foi finalizado.</p>`;
+            }
+            controlsContainer.innerHTML = buttons;
+        }
+        
+        // ---- FUNÇÕES DE GERAÇÃO DE GRUPOS E CHAVES ----
+        
+        function getGroupFormation(num) {
+            const f = {
+                3:{g:1,p:[3]}, 4:{g:1,p:[4]}, 5:{g:1,p:[5]}, 6:{g:2,p:[3,3]}, 7:{g:2,p:[4,3]}, 8:{g:2,p:[4,4]},
+                9:{g:3,p:[3,3,3]}, 10:{g:3,p:[4,3,3]}, 11:{g:3,p:[4,4,3]}, 12:{g:4,p:[3,3,3,3]},
+                13:{g:4,p:[4,3,3,3]}, 14:{g:4,p:[4,4,3,3]}, 15:{g:5,p:[3,3,3,3,3]}, 16:{g:5,p:[4,3,3,3,3]}
+            };
+            return f[num] || null;
+        }
+
+        function generateGroups(players) {
+            let shuffled = [...players].sort(() => 0.5 - Math.random());
+            const formation = getGroupFormation(shuffled.length);
+            if (!formation) return [];
+            const groups = [];
+            let playerIndex = 0;
+            for (let i = 0; i < formation.g; i++) {
+                const size = formation.p[i];
+                groups.push({ name: `Grupo ${String.fromCharCode(65 + i)}`, players: shuffled.slice(playerIndex, playerIndex + size) });
+                playerIndex += size;
+            }
+            return groups;
+        }
+
+        function generateGroupMatches(groups) {
+            const matches = [];
+            groups.forEach(group => {
+                const players = group.players;
+                for (let i = 0; i < players.length; i++) {
+                    for (let j = i + 1; j < players.length; j++) {
+                        matches.push({
+                            group: group.name,
+                            player1: { id: players[i].id, name: players[i].name },
+                            player2: { id: players[j].id, name: players[j].name },
+                            score1: null, score2: null, status: 'Pendente', stage: 'Grupos'
+                        });
+                    }
+                }
+            });
+            return matches;
+        }
+        
+        function calculateGroupStandings(matchDocs) {
+            const playerStats = {};
+            const groups = {};
+            matchDocs.forEach(doc => {
+                const match = doc.data();
+                [match.player1, match.player2].forEach(p => {
+                    if (!playerStats[p.name]) playerStats[p.name] = { name: p.name, group: match.group, P: 0, V: 0, SG: 0, GG: 0, GP: 0 };
+                });
+                if (!groups[match.group]) groups[match.group] = [];
+                if (!groups[match.group].includes(match.player1.name)) groups[match.group].push(match.player1.name);
+                if (!groups[match.group].includes(match.player2.name)) groups[match.group].push(match.player2.name);
+            });
+            matchDocs.forEach(doc => {
+                const match = doc.data();
+                if (match.status !== 'Finalizado') return;
+                const p1 = playerStats[match.player1.name];
+                const p2 = playerStats[match.player2.name];
+                const winner = match.score1 > match.score2 ? p1 : p2;
+                const loser = match.score1 < match.score2 ? p1 : p2;
+                winner.V += 1;
+                p1.SG += match.score1 - match.score2;
+                p2.SG += match.score2 - match.score1;
+                p1.GG += match.score1; p1.GP += match.score2;
+                p2.GG += match.score2; p2.GP += match.score1;
+            });
+            Object.keys(groups).forEach(groupName => {
+                groups[groupName].sort((a, b) => {
+                    const statsA = playerStats[a]; const statsB = playerStats[b];
+                    if (statsA.V !== statsB.V) return statsB.V - statsA.V;
+                    if (statsA.SG !== statsB.SG) return statsB.SG - statsA.SG;
+                    if (statsA.GG !== statsB.GG) return statsB.GG - statsA.GG;
+                    return 0;
+                });
+            });
+            return { playerStats, sortedGroups: groups };
+        }
+        
+        function getQualifiedPlayers(standings) {
+            const qualified = [];
+            Object.values(standings.sortedGroups).forEach(group => {
+                if (group[0]) qualified.push(standings.playerStats[group[0]]);
+                if (group[1]) qualified.push(standings.playerStats[group[1]]);
+            });
+            qualified.sort((a, b) => {
+                if (a.V !== b.V) return b.V - a.V;
+                if (a.SG !== b.SG) return b.SG - a.SG;
+                if (a.GG !== b.GG) return b.GG - a.GG;
+                return 0;
+            });
+            return qualified.map(q => ({id: q.name, name: q.name}));
+        }
+
+        function createKnockoutBracket(players, stage) {
+            let targetSize = 0;
+            if (stage === 'Final') targetSize = 2;
+            else if (stage === 'Semifinal') targetSize = 4;
+            else if (stage === 'Quartas') targetSize = 8;
+
+            while (players.length < targetSize) {
+                players.push({ id: 'BYE', name: 'BYE' });
+            }
+
+            const matches = [];
+            const seeding = [0, 7, 3, 4, 2, 5, 1, 6].slice(0, targetSize);
+            
+            for (let i = 0; i < targetSize / 2; i++) {
+                const player1Index = seeding[i*2];
+                const player2Index = seeding[i*2 + 1];
+                const player1 = players[player1Index] || {id: 'BYE', name: 'BYE'};
+                const player2 = players[player2Index] || {id: 'BYE', name: 'BYE'};
+
+                const match = {
+                    player1, player2, score1: null, score2: null, status: 'Pendente', stage, round: 1
+                };
+                if(match.player1.name === 'BYE') { match.status = 'Finalizado'; match.score1 = 0; match.score2 = 1;}
+                if(match.player2.name === 'BYE') { match.status = 'Finalizado'; match.score1 = 1; match.score2 = 0;}
+                matches.push(match);
+            }
+            return matches;
+        }
+
+         // RENDERIZAÇÃO DA VIEW DE DETALHES DO TORNEIO (PÚBLICO)
+        window.showTournamentDetails = (tournamentId) => {
+            document.getElementById('tournaments-list-container').classList.add('hidden');
+            const detailsView = document.getElementById('user-tournament-details');
+            detailsView.classList.remove('hidden');
+            detailsView.innerHTML = `<div class="text-center p-10"><i class="fas fa-spinner fa-spin text-3xl text-blue-500"></i></div>`;
+            
+            const unsub = onSnapshot(doc(db, "tournaments", tournamentId), (docSnapshot) => {
+                if (!docSnapshot.exists()) {
+                    detailsView.innerHTML = '<p>Torneio não encontrado.</p>';
+                    return;
+                }
+                const tournament = docSnapshot.data();
+                const statusInfo = getStatusInfo(tournament.status);
+                let html = `
+                    <button id="back-to-list-btn" onclick="switchMainTab('tournaments')" class="mb-6 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition-all"><i class="fas fa-arrow-left mr-2"></i>Voltar</button>
+                    <div class="flex flex-wrap justify-between items-center mb-6 gap-4">
+                        <h2 class="text-3xl font-extrabold text-gray-800">${tournament.name}</h2>
+                        <span class="text-sm font-semibold px-3 py-1.5 rounded-full ${statusInfo.style}">${statusInfo.text}</span>
+                    </div>`;
+                if (tournament.status === 'Finalizado' && tournament.winner) {
+                     html += `<div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-lg mb-6" role="alert"><p class="font-bold text-lg"><i class="fas fa-crown mr-2"></i>Campeão: ${tournament.winner}</p></div>`;
+                }
+                html += `<div id="tournament-content-area" class="space-y-8"></div>`;
+                detailsView.innerHTML = html;
+                listenToTournamentMatches(tournamentId, tournament.status);
+            });
+            unsubscribes.push(unsub);
+        };
+        
+        function listenToTournamentMatches(tournamentId, status) {
+            const unsub = onSnapshot(query(collection(db, `tournaments/${tournamentId}/matches`), orderBy("stage")), (snapshot) => {
+                 const contentArea = document.getElementById('tournament-content-area');
+                if(!contentArea) return;
+                if (snapshot.empty) {
+                    contentArea.innerHTML = '<p class="text-gray-500">As partidas ainda não foram geradas.</p>';
+                    return;
+                }
+                const matches = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                if (status === 'Mata-Mata' || status === 'Finalizado') {
+                    contentArea.innerHTML = renderBracketView(matches);
+                } else {
+                    contentArea.innerHTML = renderGroupStageView(matches);
+                }
+            });
+            unsubscribes.push(unsub);
+        }
+
+        function renderGroupStageView(matches) {
+            const matchesByGroup = {};
+            matches.forEach(match => {
+                if (!matchesByGroup[match.group]) matchesByGroup[match.group] = [];
+                matchesByGroup[match.group].push(match);
+            });
+            let html = '<h3 class="text-2xl font-bold text-gray-700 mb-4">Fase de Grupos</h3>';
+            Object.keys(matchesByGroup).sort().forEach(groupName => {
+                html += `<div class="mb-6"><h4 class="text-xl font-bold p-3 bg-blue-100 text-blue-800 rounded-t-lg">${groupName}</h4><div class="border border-t-0 rounded-b-lg p-4 space-y-3 bg-white">`;
+                matchesByGroup[groupName].forEach(match => {
+                    const scoreText = match.status === 'Finalizado' ? `<span class="font-bold text-lg text-green-600">${match.score1} x ${match.score2}</span>` : `<span class="text-sm font-medium text-yellow-600 bg-yellow-100 px-2 py-1 rounded-full">Pendente</span>`;
+                    html += `<div class="flex flex-col sm:flex-row justify-between items-center p-3 rounded-lg bg-gray-50 border"><div class="text-center sm:text-left mb-2 sm:mb-0 text-gray-700">${match.player1.name} <span class="text-gray-400 mx-2">vs</span> ${match.player2.name}</div><div class="text-center">${scoreText}</div></div>`;
+                });
+                html += `</div></div>`;
+            });
+            return html;
+        }
+
+        function renderBracketView(matches) {
+             const rounds = { 'Quartas': [], 'Semifinal': [], 'Final': [] };
+             matches.forEach(m => { if (rounds[m.stage]) rounds[m.stage].push(m); });
+             let html = '<h3 class="text-2xl font-bold text-gray-700 mb-4">Mata-Mata</h3>';
+             html += '<div class="bracket-container"><div class="bracket">';
+             Object.keys(rounds).forEach(roundName => {
+                 if(rounds[roundName].length === 0) return;
+                 html += `<div class="round"> <div class="round-title">${roundName}</div>`;
+                 rounds[roundName].forEach((match, index) => {
+                     html += `<div class="match"><div class="match-content"><div class="player ${match.score1 > match.score2 ? 'winner' : ''}"><span class="player-name">${match.player1.name}</span><span class="player-score">${match.score1 ?? ''}</span></div><div class="player ${match.score2 > match.score1 ? 'winner' : ''}"><span class="player-name">${match.player2.name}</span><span class="player-score">${match.score2 ?? ''}</span></div></div>${roundName !== 'Final' ? `<div class="match-connector ${index % 2 === 0 ? 'up' : 'down'}"><div class="match-connector-line"></div></div>` : ''}</div>`;
+                 });
+                 html += `</div>`;
+             });
+             html += '</div></div>';
+             return html;
+        }
+        
+        function renderMatchesList(tournamentId, status) {
+            const listContainer = document.getElementById('matches-list-container');
+            if(!listContainer) return;
+            const q = query(collection(db, `tournaments/${tournamentId}/matches`));
+            const unsub = onSnapshot(q, (snapshot) => {
+                listContainer.innerHTML = '';
+                if(snapshot.empty) { listContainer.innerHTML = '<p class="text-gray-500">Nenhuma partida gerada.</p>'; return; }
+                const matches = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                const hasKnockout = matches.some(m => m.stage !== 'Grupos');
+                if (hasKnockout) {
+                    const rounds = { 'Quartas': [], 'Semifinal': [], 'Final': [] };
+                    matches.filter(m => m.stage !== 'Grupos').forEach(m => { if (rounds[m.stage]) rounds[m.stage].push(m); });
+                    Object.keys(rounds).forEach(roundName => { if(rounds[roundName].length > 0) listContainer.innerHTML += createMatchListSection(tournamentId, roundName, rounds[roundName], status); });
+                } else {
+                    const matchesByGroup = {};
+                    matches.forEach(match => { if (!matchesByGroup[match.group]) matchesByGroup[match.group] = []; matchesByGroup[match.group].push(match); });
+                    Object.keys(matchesByGroup).sort().forEach(groupName => { listContainer.innerHTML += createMatchListSection(tournamentId, groupName, matchesByGroup[groupName], status); });
+                }
+            });
+            unsubscribes.push(unsub);
+        }
+
+        function createMatchListSection(tournamentId, title, matches, tournamentStatus) {
+            let sectionHTML = `<h4 class="text-xl font-bold mt-4 mb-2 p-3 bg-gray-200 rounded-lg">${title}</h4>`;
+            matches.forEach(match => {
+                const scoreText = match.status === 'Finalizado' ? `<b>${match.score1} x ${match.score2}</b>` : 'Pendente';
+                const canUpdate = tournamentStatus !== 'Finalizado' && match.player1.id !== 'A definir' && match.player2.id !== 'A definir' && match.player1.id !== 'BYE' && match.player2.id !== 'BYE';
+                sectionHTML += `<div class="flex justify-between items-center bg-white p-3 rounded-lg shadow-sm border"><div><span>${match.player1.name} vs ${match.player2.name}</span><span class="ml-4 text-sm text-gray-600 font-semibold">${scoreText}</span></div>${canUpdate ? `<button onclick="openScoreModal('${tournamentId}', '${match.id}', '${match.stage}', '${match.player1.name}', '${match.player2.name}')" class="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600">Atualizar</button>` : ''}</div>`;
+            });
+            return sectionHTML;
+        }
+
+        // ---- Inicialização da Aplicação ----
+        switchMainTab('tournaments');
+
+    </script>
+</body>
+</html>
