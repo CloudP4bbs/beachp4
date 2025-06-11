@@ -1,151 +1,129 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-br">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Torneios de Beach Tennis - Tabela de Jogos</title>
+    <title>Beach Tennis Manager - Torneios</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
         body { font-family: 'Inter', sans-serif; }
-        .bracket-container { display: flex; overflow-x: auto; padding: 2rem 1rem; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
-        .bracket-round { display: flex; flex-direction: column; justify-content: space-around; flex-shrink: 0; min-width: 280px; max-width: 300px; margin: 0 3rem; position: relative; }
-        .bracket-match-wrapper { position: relative; }
-        .bracket-match { background-color: white; border-radius: 0.75rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,.05), 0 4px 6px -4px rgba(0,0,0,.05); }
-        .bracket-round:not(:last-child) .bracket-match-wrapper { margin-bottom: 50px; }
-        .player-name { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; border-bottom: 1px solid #f1f5f9; font-size: 1rem; }
-        .player-name:last-child { border-bottom: none; }
-        .score { font-weight: 800; color: #2563eb; }
-        .winner { font-weight: 700; color: #16a34a; background-color: #f0fdf4; border-left: 4px solid #22c55e; }
-        #toast-notification { position: fixed; top: -100px; left: 50%; transform: translateX(-50%); background-color: #ffffff; color: #1e3a8a; padding: 1rem 1.5rem; border-radius: 9999px; box-shadow: 0 10px 15px rgba(0,0,0,0.1); transition: top 0.5s ease-in-out; z-index: 9999; font-weight: 500; display: flex; align-items: center; gap: 0.5rem;}
-        #toast-notification.show { top: 20px; }
     </style>
 </head>
-<body class="bg-slate-50">
+<body class="bg-gray-100 text-gray-800">
 
-    <header class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-center p-8 sm:p-12 shadow-lg">
-        <h1 class="text-4xl md:text-5xl font-extrabold">Torneios de Beach Tennis</h1>
-        <p class="mt-2 text-lg opacity-90">Acompanhe os jogos em tempo real</p>
-    </header>
+    <div class="container mx-auto p-4 md:p-6">
+        <!-- Header -->
+        <header class="bg-white rounded-xl shadow-lg p-5 mb-6 flex justify-between items-center">
+            <div class="flex items-center gap-4">
+                <i class="fas fa-table-tennis text-blue-600 text-4xl"></i>
+                <div>
+                    <h1 class="text-3xl font-extrabold text-gray-800">Beach Tennis Manager</h1>
+                    <p class="text-gray-500">Acompanhe os torneios e o ranking</p>
+                </div>
+            </div>
+            <div>
+                <a href="admin.html" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105">
+                    <i class="fas fa-user-shield mr-2"></i> Admin
+                </a>
+            </div>
+        </header>
 
-    <main id="app-container" class="container mx-auto p-4 sm:p-6 lg:p-8">
-        <div id="loading-tournaments" class="text-center text-gray-500 text-lg mt-10">Carregando torneios...</div>
-    </main>
+        <main class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Coluna de Torneios -->
+            <div class="lg:col-span-2">
+                <h2 class="text-3xl font-bold mb-6 text-gray-700">Torneios Ativos</h2>
+                <div id="tournaments-list" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Cards de torneios serão inseridos aqui -->
+                    <p id="no-tournaments-msg" class="text-gray-500 mt-4 hidden col-span-full">Nenhum torneio encontrado no momento.</p>
+                </div>
+            </div>
 
-    <div id="toast-notification" class="toast-notification">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-        <span>Placar atualizado!</span>
+            <!-- Coluna de Ranking -->
+            <div>
+                <div class="bg-white rounded-xl shadow-lg p-4 sm:p-6 sticky top-6">
+                    <h2 class="text-2xl font-bold mb-4 text-gray-700">Ranking Geral</h2>
+                    <div class="overflow-x-auto max-h-96">
+                        <table class="min-w-full bg-white">
+                            <thead class="bg-gray-800 text-white sticky top-0">
+                                <tr>
+                                    <th class="w-1/12 text-left py-3 px-4 uppercase font-semibold text-sm">#</th>
+                                    <th class="w-8/12 text-left py-3 px-4 uppercase font-semibold text-sm">Atleta</th>
+                                    <th class="w-3/12 text-left py-3 px-4 uppercase font-semibold text-sm">Pts</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ranking-table-body" class="text-gray-700">
+                                <!-- Linhas do ranking -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
     </div>
-    
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, onSnapshot, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { firebaseConfig } from './config.js';
 
-        const firebaseConfig = {
-          apiKey: "AIzaSyDEiEknWaOl2ra-it2dB8mFGPb9-Q__5-E",
-          authDomain: "beachp4-70588.firebaseapp.com",
-          projectId: "beachp4-70588",
-          storageBucket: "beachp4-70588.firebasestorage.app",
-          messagingSenderId: "960018980292",
-          appId: "1:960018980292:web:a11dbdd40811dec1ee5891"
-        };
-        const appId = 'beach-tennis-v10';
-        
-        let db, auth, unsubscribeTournamentDetails, lastKnownMatchesState = {};
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
 
-        try {
-            const app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            auth = getAuth(app);
-        } catch (e) { console.error(e); }
+        // --- RENDERIZAÇÃO INICIAL ---
 
-        onAuthStateChanged(auth, async (user) => {
-            if (!user) await signInAnonymously(auth).catch(console.error);
-            loadAllTournaments();
+        // Carrega e exibe a lista de torneios
+        const tournamentsListEl = document.getElementById('tournaments-list');
+        const noTournamentsMsg = document.getElementById('no-tournaments-msg');
+        onSnapshot(query(collection(db, "tournaments"), orderBy("createdAt", "desc")), (snapshot) => {
+            if (!tournamentsListEl) return;
+            
+            if (snapshot.empty) {
+                tournamentsListEl.innerHTML = '';
+                noTournamentsMsg.classList.remove('hidden');
+                return;
+            }
+            
+            noTournamentsMsg.classList.add('hidden');
+            tournamentsListEl.innerHTML = snapshot.docs.map(doc => createTournamentCard(doc.id, doc.data())).join('');
         });
-        
-        function showToast(message) {
-            const toast = document.getElementById('toast-notification');
-            toast.querySelector('span').textContent = message;
-            toast.classList.add('show');
-            setTimeout(() => toast.classList.remove('show'), 3500);
+
+        // Carrega e exibe o ranking
+        const rankingTableBody = document.getElementById('ranking-table-body');
+        onSnapshot(query(collection(db, "ranking"), orderBy("points", "desc")), (snapshot) => {
+            if (!rankingTableBody) return;
+            rankingTableBody.innerHTML = snapshot.docs.map((doc, i) => `
+                <tr class="border-b border-gray-200 hover:bg-gray-100">
+                    <td class="py-3 px-4 font-bold">${i + 1}</td>
+                    <td class="py-3 px-4">${doc.id}</td>
+                    <td class="py-3 px-4 font-semibold">${doc.data().points}</td>
+                </tr>
+            `).join('');
+        });
+
+        // --- FUNÇÕES DE TEMPLATE ---
+        function getStatusInfo(status) {
+            const styles = {
+                'Inscrições Abertas': 'bg-blue-100 text-blue-800',
+                'Fase de Grupos': 'bg-yellow-100 text-yellow-800',
+                'Mata-Mata': 'bg-purple-100 text-purple-800',
+                'Finalizado': 'bg-green-100 text-green-800'
+            };
+            return { text: status, style: styles[status] || 'bg-gray-100 text-gray-800' };
         }
 
-        window.loadAllTournaments = () => {
-            if (unsubscribeTournamentDetails) unsubscribeTournamentDetails();
-            const tournamentsCol = collection(db, `artifacts/${appId}/public/data/tournaments`);
-            onSnapshot(tournamentsCol, (snapshot) => {
-                const container = document.getElementById('app-container');
-                let content = `<h2 class="text-3xl font-bold text-center text-gray-800 mb-8">Torneios Ativos</h2><div id="tournaments-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">`;
-                if (snapshot.empty) content += `<p class="text-gray-500 col-span-full text-center">Nenhum torneio disponível.</p>`;
-                else {
-                    snapshot.docs.forEach((doc) => {
-                        const t = doc.data();
-                        let statusText = (t.status || 'open').replace('_', ' ');
-                        if (statusText === 'open') statusText = 'Inscrições Abertas';
-                        if (statusText === 'knockout') statusText = 'Mata-Mata';
-                        if (statusText === 'completed') statusText = 'Finalizado';
-                        const formattedDate = t.startDate ? new Date(t.startDate + 'T00:00:00').toLocaleDateString('pt-BR') : 'Data a definir';
-                        content += `<div onclick="viewTournament('${doc.id}')" class="bg-white p-6 rounded-xl shadow-lg cursor-pointer transition-transform transform hover:-translate-y-1 hover:shadow-2xl flex flex-col">
-                                <img src="${t.logoUrl || 'https://placehold.co/600x400/e2e8f0/64748b?text=Logo'}" alt="Logo" class="w-full h-40 object-cover rounded-lg mb-4 bg-gray-200" onerror="this.onerror=null;this.src='https://placehold.co/600x400/e2e8f0/64748b?text=Logo';">
-                                <h3 class="text-xl font-bold text-blue-700">${t.name}</h3>
-                                <p class="text-gray-500 text-sm mt-2">${formattedDate} - ${t.startTime || 'Hora a definir'}</p>
-                                <div class="flex-grow"></div>
-                                <div class="mt-4"><span class="inline-block px-3 py-1 text-sm font-semibold rounded-full capitalize ${t.status.includes('knockout') || t.status === 'completed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">${statusText}</span></div>
-                            </div>`;
-                    });
-                }
-                container.innerHTML = content + `</div>`;
-            });
-        }
-        
-        window.viewTournament = (id) => {
-            if (unsubscribeTournamentDetails) unsubscribeTournamentDetails();
-            const container = document.getElementById('app-container');
-            container.innerHTML = `<div id="tournament-display" class="bg-white rounded-xl shadow-2xl p-4 sm:p-6 min-h-[400px]"></div>`;
-            const tournamentDocRef = doc(db, `artifacts/${appId}/public/data/tournaments`, id);
-            unsubscribeTournamentDetails = onSnapshot(tournamentDocRef, (doc) => {
-                if (doc.exists()) {
-                    const tournament = {id: doc.id, ...doc.data()};
-                    if (lastKnownMatchesState[id] && JSON.stringify(lastKnownMatchesState[id]) !== JSON.stringify(tournament.matches)) {
-                        showToast(`O torneio "${tournament.name}" foi atualizado!`);
-                    }
-                    lastKnownMatchesState[id] = tournament.matches;
-                    renderTournamentView(tournament);
-                }
-            });
-        }
-        
-        function renderTournamentView(data) {
-            const display = document.getElementById('tournament-display');
-            if(!display) return;
-            let content = `<button onclick="loadAllTournaments()" class="mb-6 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 flex items-center gap-2"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>Voltar</button>`;
-            if (!data.matches || data.matches.length === 0) content += `<div class="text-center p-8"><img src="${data.logoUrl || 'https://placehold.co/600x400/e2e8f0/64748b?text=Logo'}" alt="Logo" class="max-w-xs mx-auto rounded-xl mb-6 bg-gray-200" onerror="this.onerror=null;this.src='https://placehold.co/600x400/e2e8f0/64748b?text=Logo';"><h2 class="text-2xl font-bold text-gray-700">${data.name}</h2><p class="mt-4 text-gray-500">Chaves não geradas.</p></div>`;
-            else if (data.status.includes('knockout') || data.status === 'completed') content += renderPublicBrackets(data);
-            else content += `<h2 class="text-2xl font-bold">${data.name}</h2><p class="text-gray-600 mt-2">Visualização para "${data.status}" não disponível.</p>`;
-            display.innerHTML = content;
-        }
-
-        function renderPublicBrackets(data) {
-            let bracketHTML = `<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4"><h2 class="text-2xl sm:text-3xl font-bold text-gray-800">${data.name} - Chaveamento</h2></div><div class="bracket-container">`;
-            const rounds = {};
-            (data.matches || []).forEach(match => {
-                if (!rounds[match.round]) rounds[match.round] = [];
-                rounds[match.round].push(match);
-            });
-             Object.keys(rounds).sort((a, b) => a - b).forEach(roundNumber => {
-                rounds[roundNumber].sort((a,b) => a.matchNumber - b.matchNumber);
-                bracketHTML += `<div class="bracket-round">`;
-                rounds[roundNumber].forEach(match => {
-                    bracketHTML += `<div class="bracket-match-wrapper"><div class="bracket-match">
-                               <div class="player-name ${match.winner === (match.player1?.id) ? 'winner' : ''}"><span>${match.player1?.name || 'Aguardando'}</span> <span class="score">${match.score1 || ''}</span></div>
-                               <div class="player-name ${match.winner === (match.player2?.id) ? 'winner' : ''}"><span>${match.player2?.name || 'Aguardando'}</span> <span class="score">${match.score2 || ''}</span></div>
-                            </div></div>`;
-                });
-                bracketHTML += `</div>`;
-             });
-            return bracketHTML + `</div>`;
+        function createTournamentCard(id, data) {
+            const statusInfo = getStatusInfo(data.status);
+            return `
+                <a href="torneio.html?id=${id}" class="bg-white block p-6 rounded-xl shadow-lg hover:shadow-2xl hover:-translate-y-1 transition-all">
+                    <div class="flex justify-between items-start">
+                        <h3 class="font-bold text-xl mb-2 text-blue-800">${data.name}</h3>
+                        <span class="text-xs font-semibold px-2.5 py-1 rounded-full ${statusInfo.style}">${statusInfo.text}</span>
+                    </div>
+                    <p class="text-gray-600 text-sm"><i class="fas fa-tags mr-2 opacity-60"></i> ${data.category} / ${data.gender} / ${data.age}</p>
+                    <p class="text-gray-600 text-sm"><i class="fas fa-info-circle mr-2 opacity-60"></i> ${data.type}</p>
+                </a>`;
         }
     </script>
 </body>

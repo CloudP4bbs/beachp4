@@ -1,459 +1,65 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-br">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin - Gerenciador de Torneios</title>
+    <title>Admin Login</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
-        .form-input { @apply w-full p-3 text-gray-900 border border-gray-300 rounded-lg bg-gray-50 text-base focus:ring-blue-500 focus:border-blue-500 transition-all; }
-        .bracket-container { display: flex; overflow-x: auto; padding: 1.5rem 1rem; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
-        .bracket-round { display: flex; flex-direction: column; justify-content: space-around; flex-shrink: 0; min-width: 280px; max-width: 300px; margin: 0 3rem; position: relative; }
-        .bracket-match-wrapper { position: relative; }
-        .bracket-match { background-color: white; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,.05), 0 2px 4px -2px rgba(0,0,0,.05); border: 1px solid #e2e8f0; }
-        .bracket-round:not(:last-child) .bracket-match-wrapper { margin-bottom: 50px; }
-        .player-name { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; border-bottom: 1px solid #f1f5f9; font-size: 0.95rem; }
-        .player-name:last-child { border-bottom: none; }
-        .winner { font-weight: 700; color: #16a34a; background-color: #f0fdf4; }
-    </style>
 </head>
-<body class="text-gray-800">
-
-    <nav class="bg-white shadow-sm sticky top-0 z-40">
-        <div class="container mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between items-center py-3">
-                <div class="flex items-center space-x-2">
-                     <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v11.494m-5.22-6.22l10.44 0M17.494 6.253L6.506 17.241M6.506 6.253l10.988 10.988"></path><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    <h1 class="text-xl font-bold text-gray-800">Painel Principal</h1>
-                </div>
-                <div class="flex items-center space-x-4">
-                    <span id="user-email" class="text-gray-600 text-sm hidden sm:block"></span>
-                    <button onclick="logout()" class="bg-red-500 text-white px-3 py-2 rounded-lg hover:bg-red-600 transition-colors text-sm font-semibold">Sair</button>
-                </div>
+<body class="bg-gray-100 flex items-center justify-center h-screen">
+    <div class="w-full max-w-md">
+        <form id="login-form" class="bg-white shadow-lg rounded-xl px-8 pt-6 pb-8 mb-4">
+            <h1 class="text-3xl font-extrabold text-center mb-6">Login do Administrador</h1>
+            <div class="mb-4">
+                <label class="block text-gray-700 text-sm font-bold mb-2" for="login-email-input">Email</label>
+                <input class="shadow-sm appearance-none border rounded w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" id="login-email-input" type="email" placeholder="admin@email.com" required>
             </div>
-        </div>
-    </nav>
-    
-    <main id="main-content" class="container mx-auto p-4 sm:p-6 lg:p-8">
-        <div id="loading-message" class="text-center text-gray-500 text-lg mt-10">Carregando...</div>
-    </main>
-
-    <div id="modal-container" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center hidden z-50 p-4">
-        <div id="modal-content" class="bg-white p-6 rounded-xl shadow-2xl w-full max-w-md"></div>
+            <div class="mb-6">
+                <label class="block text-gray-700 text-sm font-bold mb-2" for="login-password-input">Senha</label>
+                <input class="shadow-sm appearance-none border rounded w-full py-3 px-4 text-gray-700 mb-3 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" id="login-password-input" type="password" placeholder="******************" required>
+            </div>
+            <p id="auth-error" class="text-red-500 text-sm mb-4 text-center h-4"></p>
+            <div class="flex items-center justify-between">
+                <button class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg focus:outline-none focus:shadow-outline" type="submit">
+                    Entrar
+                </button>
+            </div>
+            <div class="text-center mt-4">
+                <a href="index.html" class="inline-block align-baseline font-bold text-sm text-blue-500 hover:text-blue-800">
+                    Voltar para o site
+                </a>
+            </div>
+        </form>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, arrayUnion, arrayRemove, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { firebaseConfig } from './config.js';
 
-        // --- Configuração e Variáveis Globais ---
-        const firebaseConfig = {
-          apiKey: "AIzaSyDEiEknWaOl2ra-it2dB8mFGPb9-Q__5-E",
-          authDomain: "beachp4-70588.firebaseapp.com",
-          projectId: "beachp4-70588",
-          storageBucket: "beachp4-70588.firebasestorage.app",
-          messagingSenderId: "960018980292",
-          appId: "1:960018980292:web:a11dbdd40811dec1ee5891"
-        };
-        const appId = 'beach-tennis-v10';
-        let db, auth;
-        let currentTournamentId = null;
-        let allAthletes = [];
-        let selectedAthletesForPair = [null, null];
-        let unsubscribeFromTournaments, unsubscribeFromDetails, unsubscribeFromAthletes;
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
 
-        // --- Inicialização e Autenticação ---
-        try {
-            const app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            auth = getAuth(app);
-        } catch (e) { document.body.innerHTML = `<div class="text-center text-red-500 p-8">Erro de configuração.</div>`; }
-
+        // Redireciona se já estiver logado
         onAuthStateChanged(auth, (user) => {
             if (user) {
-                document.getElementById('user-email').textContent = user.email;
-                document.getElementById('loading-message').style.display = 'none';
-                renderMainLayout();
-                listenForTournaments();
-                listenForAthletes();
-            } else {
-                window.location.href = 'login.html';
+                window.location.href = 'painel.html';
             }
         });
 
-        // --- Funções da UI ---
-        const modalContainer = document.getElementById('modal-container');
-        const modalContent = document.getElementById('modal-content');
-        function showModal(contentHTML) { modalContent.innerHTML = contentHTML; modalContainer.classList.remove('hidden'); }
-        window.closeModal = () => { modalContainer.classList.add('hidden'); modalContent.innerHTML = ''; }
-        window.logout = () => signOut(auth);
-
-        // --- Lógica de Atletas ---
-        function listenForAthletes() {
-            if (unsubscribeFromAthletes) unsubscribeFromAthletes();
-            const athletesCol = collection(db, `artifacts/${appId}/public/data/athletes`);
-            unsubscribeFromAthletes = onSnapshot(athletesCol, (snapshot) => {
-                allAthletes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                allAthletes.sort((a, b) => a.name.localeCompare(b.name));
-            });
-        }
-        
-        // --- Renderização Principal e de Torneios ---
-        function renderMainLayout() {
-            document.getElementById('main-content').innerHTML = `
-                <div class="mb-8 p-6 bg-white rounded-xl shadow-md grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <h2 class="text-2xl font-bold text-gray-800">Gerenciar Atletas</h2>
-                        <p class="text-gray-500 mt-1">Adicione, edite ou remova atletas da sua base de dados.</p>
-                        <a href="athletes.html" class="inline-block mt-4 bg-blue-600 text-white px-5 py-2 rounded-lg font-semibold hover:bg-blue-700">Página de Atletas</a>
-                    </div>
-                    <div>
-                        <h2 class="text-2xl font-bold text-gray-800">Gerenciar Partidas</h2>
-                        <p class="text-gray-500 mt-1">Insira os resultados das partidas de todos os torneios.</p>
-                        <a href="matches.html" class="inline-block mt-4 bg-green-600 text-white px-5 py-2 rounded-lg font-semibold hover:bg-green-700">Página de Partidas</a>
-                    </div>
-                </div>
-
-                <div class="bg-white p-6 rounded-xl shadow-md mb-8">
-                    <h2 class="text-2xl font-bold mb-4">Criar Novo Torneio</h2>
-                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <input type="text" id="t-name" placeholder="Nome do Torneio" class="form-input md:col-span-2 lg:col-span-4">
-                        <input type="text" id="t-logo-url" placeholder="URL da Logo do Torneio" class="form-input md:col-span-2 lg:col-span-4">
-                        <div class="lg:col-span-2"><label class="block text-sm font-medium text-gray-700 mb-1">Data</label><input type="date" id="t-date" class="form-input"></div>
-                        <div class="lg:col-span-2"><label class="block text-sm font-medium text-gray-700 mb-1">Hora</label><input type="time" id="t-time" class="form-input"></div>
-                        <select id="t-type" class="form-input"><option value="simples">Simples</option><option value="duplas">Duplas</option></select>
-                        <select id="t-category" class="form-input"><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option><option value="Infantil">Infantil</option></select>
-                        <select id="t-division" class="form-input"><option value="masculino">Masculino</option><option value="feminino">Feminino</option><option value="misto">Misto</option></select>
-                        <select id="t-mode" class="form-input"><option value="knockout">Mata-mata</option><option value="group_stage" disabled>Grupos (em breve)</option></select>
-                        <button onclick="createTournament()" class="md:col-span-2 lg:col-span-4 bg-blue-600 text-white p-3 rounded-lg hover:bg-blue-700 font-semibold text-lg">Criar Torneio</button>
-                    </div>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div id="tournaments-column" class="md:col-span-1 bg-white p-6 rounded-xl shadow-md"></div>
-                    <div id="details-column" class="md:col-span-2 space-y-6"></div>
-                </div>`;
-        }
-        
-        function listenForTournaments() {
-            if (unsubscribeFromTournaments) unsubscribeFromTournaments();
-            const tournamentsCol = collection(db, `artifacts/${appId}/public/data/tournaments`);
-            unsubscribeFromTournaments = onSnapshot(tournamentsCol, (snapshot) => {
-                const column = document.getElementById('tournaments-column');
-                if (!column) return;
-                
-                let listHTML = `<h2 class="text-2xl font-bold mb-4 text-gray-800">Meus Torneios</h2><div id="tournaments-list" class="space-y-2">`;
-                if (snapshot.empty) {
-                    listHTML += '<p class="text-gray-500">Nenhum torneio criado.</p>';
-                } else {
-                    snapshot.docs.forEach((doc) => {
-                        const t = doc.data();
-                        listHTML += `<button onclick="selectTournament('${doc.id}')" class="w-full text-left p-4 rounded-lg transition-all ${(doc.id === currentTournamentId) ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-100 hover:bg-blue-100 hover:text-blue-800'}">${t.name}</button>`;
-                    });
-                }
-                listHTML += `</div>`;
-                column.innerHTML = listHTML;
-
-                if (!currentTournamentId && !snapshot.empty) {
-                    selectTournament(snapshot.docs[0].id);
-                } else if (currentTournamentId) {
-                    selectTournament(currentTournamentId, true);
-                } else {
-                     document.getElementById('details-column').innerHTML = `<div class="bg-white p-6 rounded-xl shadow-md text-center"><p class="text-gray-500">Selecione ou crie um torneio.</p></div>`;
-                }
-            });
-        }
-        
-        window.createTournament = async () => {
-            const tName = document.getElementById('t-name').value;
-            if (!tName.trim()) {
-                showModal(`<p class="text-lg text-center">O nome do torneio é obrigatório.</p><button onclick="closeModal()" class="w-full mt-4 bg-blue-500 text-white p-2 rounded-lg">OK</button>`);
-                return;
-            }
-            const tournamentData = {
-                name: tName,
-                logoUrl: document.getElementById('t-logo-url').value || '',
-                startDate: document.getElementById('t-date').value || '',
-                startTime: document.getElementById('t-time').value || '',
-                type: document.getElementById('t-type').value,
-                category: document.getElementById('t-category').value,
-                division: document.getElementById('t-division').value,
-                mode: document.getElementById('t-mode').value,
-                status: 'open',
-                participants: [],
-                groups: [],
-                matches: [],
-                createdAt: new Date(),
-            };
+        const loginForm = document.getElementById('login-form');
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('login-email-input').value;
+            const password = document.getElementById('login-password-input').value;
             try {
-                const tournamentsCol = collection(db, `artifacts/${appId}/public/data/tournaments`);
-                const docRef = await addDoc(tournamentsCol, tournamentData);
-                ['t-name', 't-logo-url', 't-date', 't-time'].forEach(id => document.getElementById(id).value = '');
-                selectTournament(docRef.id);
-            } catch (error) { console.error("Erro ao criar torneio: ", error); }
-        };
-
-        window.selectTournament = (id, force = false) => {
-            if (id === currentTournamentId && !force) return;
-            if (unsubscribeFromDetails) unsubscribeFromDetails();
-            currentTournamentId = id;
-            const tournamentDocRef = doc(db, `artifacts/${appId}/public/data/tournaments`, currentTournamentId);
-            unsubscribeFromDetails = onSnapshot(tournamentDocRef, (doc) => {
-                 if (doc.exists()) {
-                    displayTournamentDetails({ id: doc.id, ...doc.data() });
-                }
-            });
-        };
-
-        function displayTournamentDetails(data) {
-            const detailsColumn = document.getElementById('details-column');
-            if (!detailsColumn) return;
-            if (data.status === 'open') {
-                detailsColumn.innerHTML = renderParticipantManagement(data);
-            } else if (data.status === 'knockout' || data.status === 'completed') {
-                detailsColumn.innerHTML = renderKnockoutManagement(data);
-            } else {
-                detailsColumn.innerHTML = `<div class="bg-white p-6 rounded-xl shadow-md"><h2 class="text-2xl font-bold">${data.name}</h2><p class="text-gray-600 mt-2">Este modo (${data.status}) ainda não possui interface de gerenciamento.</p></div>`;
+                await signInWithEmailAndPassword(auth, email, password);
+                // O listener onAuthStateChanged vai redirecionar
+            } catch (error) {
+                document.getElementById('auth-error').textContent = "Email ou senha inválidos.";
             }
-        }
-        
-        function renderParticipantManagement(data) {
-            let searchUI;
-            const isDoubles = data.type === 'duplas';
-            const genderFilter1 = (isDoubles && data.division === 'misto') ? 'masculino' : (data.division === 'misto' ? '' : data.division);
-            const genderFilter2 = (isDoubles && data.division === 'misto') ? 'feminino' : data.division;
-
-            const player1Slot = `
-                <div class="relative">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Jogador(a) 1 ${isDoubles ? `(${genderFilter1})` : ''}</label>
-                    <div id="player-1-display" class="hidden items-center justify-between p-3 border rounded-lg bg-green-50"></div>
-                    <input type="text" id="search-athlete-0" onkeyup="searchAthletes(event, 0, '${genderFilter1}')" placeholder="Buscar atleta" class="form-input">
-                    <div id="results-0" class="absolute z-10 w-full bg-white border rounded-b-lg hidden shadow-lg max-h-48 overflow-y-auto"></div>
-                </div>`;
-            
-            const player2Slot = isDoubles ? `
-                <div class="relative">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Jogador(a) 2 (${genderFilter2})</label>
-                    <div id="player-2-display" class="hidden items-center justify-between p-3 border rounded-lg bg-green-50"></div>
-                    <input type="text" id="search-athlete-1" onkeyup="searchAthletes(event, 1, '${genderFilter2}')" placeholder="Buscar atleta" class="form-input">
-                    <div id="results-1" class="absolute z-10 w-full bg-white border rounded-b-lg hidden shadow-lg max-h-48 overflow-y-auto"></div>
-                </div>` : '';
-            
-            searchUI = `<div class="grid grid-cols-1 ${isDoubles ? 'sm:grid-cols-2' : ''} gap-4">${player1Slot}${player2Slot}</div>`;
-
-            let participantList = (data.participants || []).map(p => `
-                <li class="flex justify-between items-center p-2 hover:bg-gray-100 rounded-lg">
-                    <span>${p.name}</span>
-                    <button onclick="removeParticipant('${p.id}')" class="text-red-500 hover:text-red-700 text-sm">Remover</button>
-                </li>`).join('');
-            if (!participantList) {
-                participantList = `<li class="list-none text-gray-400">Nenhum participante inscrito.</li>`;
-            }
-
-            return `
-                <div class="bg-white p-6 rounded-xl shadow-md">
-                    <h2 class="text-2xl font-bold mb-1">${data.name}</h2>
-                    <p class="text-gray-500 mb-6">Status: Inscrições Abertas</p>
-                    <div class="mb-6 border-b pb-6">
-                        <h3 class="font-semibold mb-2 text-lg">Adicionar Inscrição</h3>
-                        <div class="space-y-2">${searchUI}</div>
-                        <button id="add-participant-btn" onclick="addParticipantToTournament('${data.type}')" class="w-full mt-3 bg-green-500 text-white p-3 rounded-lg font-semibold hover:bg-green-600 disabled:bg-gray-400" disabled>Adicionar Inscrição</button>
-                    </div>
-                    <div>
-                        <h3 class="font-semibold mb-2 text-lg">Inscritos (${(data.participants || []).length})</h3>
-                        <ul class="space-y-1">${participantList}</ul>
-                    </div>
-                     <div class="text-center mt-6">
-                        <button onclick="startTournament()" class="bg-purple-600 text-white py-3 px-6 rounded-lg text-lg font-bold hover:bg-purple-700">Iniciar Torneio</button>
-                    </div>
-                </div>`;
-        }
-
-        window.searchAthletes = (event, index, genderFilter) => {
-            const searchTerm = event.target.value.toLowerCase();
-            const resultsContainer = document.getElementById(`results-${index}`);
-            if (!searchTerm) {
-                resultsContainer.classList.add('hidden');
-                return;
-            }
-            const filtered = allAthletes.filter(a => 
-                a.name.toLowerCase().includes(searchTerm) &&
-                (genderFilter ? a.gender === genderFilter : true)
-            );
-            
-            if (filtered.length > 0) {
-                resultsContainer.innerHTML = filtered.map(a => 
-                    `<div class="p-2 hover:bg-gray-100 cursor-pointer" onclick="selectAthlete(${index}, '${a.id}', '${a.name}')">${a.name}</div>`
-                ).join('');
-                resultsContainer.classList.remove('hidden');
-            } else {
-                resultsContainer.classList.add('hidden');
-            }
-        }
-        
-        window.selectAthlete = (index, athleteId, athleteName) => {
-            const athlete = allAthletes.find(a => a.id === athleteId);
-            selectedAthletesForPair[index] = athlete;
-            
-            const displayDiv = document.getElementById(`player-${index + 1}-display`);
-            const input = document.getElementById(`search-athlete-${index}`);
-            const resultsContainer = document.getElementById(`results-${index}`);
-            
-            displayDiv.innerHTML = `<span class="font-semibold">${athleteName}</span><button onclick="clearAthlete(${index})" class="text-red-500 text-sm">Limpar</button>`;
-            displayDiv.classList.remove('hidden');
-            input.classList.add('hidden');
-            resultsContainer.classList.add('hidden');
-
-            updateAddButtonState();
-        }
-
-        window.clearAthlete = (index) => {
-            selectedAthletesForPair[index] = null;
-            const displayDiv = document.getElementById(`player-${index + 1}-display`);
-            const input = document.getElementById(`search-athlete-${index}`);
-            
-            displayDiv.innerHTML = '';
-            displayDiv.classList.add('hidden');
-            input.value = '';
-            input.classList.remove('hidden');
-
-            updateAddButtonState();
-        }
-
-        function updateAddButtonState() {
-            const btn = document.getElementById('add-participant-btn');
-            const isDoubles = !!document.getElementById('search-athlete-1');
-            
-            if (isDoubles) {
-                btn.disabled = !(selectedAthletesForPair[0] && selectedAthletesForPair[1]);
-            } else {
-                btn.disabled = !selectedAthletesForPair[0];
-            }
-        }
-
-        window.addParticipantToTournament = async (type) => {
-            let newParticipant;
-            if (type === 'simples') {
-                if (!selectedAthletesForPair[0]) { showModal("<p>Selecione um atleta.</p>"); return; }
-                newParticipant = {
-                    id: selectedAthletesForPair[0].id,
-                    name: selectedAthletesForPair[0].name,
-                    players: [selectedAthletesForPair[0]]
-                };
-            } else {
-                if (!selectedAthletesForPair[0] || !selectedAthletesForPair[1]) { showModal("<p>Selecione dois atletas.</p>"); return; }
-                if (selectedAthletesForPair[0].id === selectedAthletesForPair[1].id) { showModal("<p>Os atletas da dupla devem ser diferentes.</p>"); return; }
-                newParticipant = {
-                    id: `d${Date.now()}`,
-                    name: `${selectedAthletesForPair[0].name} / ${selectedAthletesForPair[1].name}`,
-                    players: [selectedAthletesForPair[0], selectedAthletesForPair[1]]
-                };
-            }
-
-            const tournamentDocRef = doc(db, `artifacts/${appId}/public/data/tournaments`, currentTournamentId);
-            try {
-                await updateDoc(tournamentDocRef, { participants: arrayUnion(newParticipant) });
-                clearAthlete(0);
-                if (type !== 'simples') clearAthlete(1);
-            } catch (e) { console.error(e); }
-        }
-        
-        window.removeParticipant = async (participantId) => {
-            if(!confirm("Tem certeza que deseja remover esta inscrição?")) return;
-            const tournamentDocRef = doc(db, `artifacts/${appId}/public/data/tournaments`, currentTournamentId);
-            const tournamentData = (await getDoc(tournamentDocRef)).data();
-            const currentParticipants = tournamentData.participants || [];
-            const participantToRemove = currentParticipants.find(p => p.id === participantId);
-
-            if (participantToRemove) {
-                 await updateDoc(tournamentDocRef, { 
-                    participants: arrayRemove(participantToRemove) 
-                });
-            }
-        }
-
-        window.startTournament = async () => {
-            if(!confirm("Tem certeza que deseja iniciar o torneio? As inscrições serão fechadas.")) return;
-            const tournamentDocRef = doc(db, `artifacts/${appId}/public/data/tournaments`, currentTournamentId);
-            const tournamentData = (await getDoc(tournamentDocRef)).data();
-            if (!tournamentData.participants || tournamentData.participants.length < 2) {
-                showModal("<p>É necessário ter pelo menos 2 inscrições para iniciar.</p>");
-                return;
-            }
-
-            let participants = [...tournamentData.participants];
-            participants.sort(() => Math.random() - 0.5); 
-
-            const totalRounds = Math.ceil(Math.log2(participants.length));
-            const totalSlots = Math.pow(2, totalRounds);
-            const byes = totalSlots - participants.length;
-
-            const newMatches = [];
-            let pIndex = 0;
-            let matchCounter = 1;
-            
-            // Rodada 1
-            for (let i = 0; i < totalSlots / 2; i++) {
-                const player1 = pIndex < (totalSlots - byes * 2) ? participants[pIndex++] : null;
-                const player2 = (i < (totalSlots / 2) - byes) ? participants[pIndex++] : null;
-                
-                const match = { round: 1, matchNumber: matchCounter++, player1, player2, winner: null, score1: '', score2: '' };
-                if (!player1) { match.player1 = { id: 'bye', name: 'BYE' }; match.winner = match.player2.id; }
-                if (!player2) { match.player2 = { id: 'bye', name: 'BYE' }; match.winner = match.player1.id; }
-                newMatches.push(match);
-            }
-
-            // Rodadas seguintes
-            let matchesInRound = totalSlots / 4;
-            for (let r = 2; r <= totalRounds; r++) {
-                for (let i = 0; i < matchesInRound; i++) {
-                    newMatches.push({
-                        round: r, matchNumber: matchCounter++,
-                        player1: null, player2: null,
-                        winner: null, score1: '', score2: ''
-                    });
-                }
-                matchesInRound /= 2;
-            }
-            
-            try {
-                await updateDoc(tournamentDocRef, { status: 'knockout', matches: newMatches });
-            } catch (e) { console.error(e); }
-        }
-
-        function renderKnockoutManagement(data) {
-            let bracketHTML = `
-                <div class="bg-white p-4 sm:p-6 rounded-xl shadow-md">
-                    <div class="flex justify-between items-center mb-4">
-                         <h2 class="text-2xl font-bold text-gray-800">${data.name} - Chaveamento</h2>
-                    </div>
-                    <p class="text-gray-600 mb-4">Os resultados são gerenciados na <a href="matches.html" class="text-blue-600 font-semibold underline">página de partidas</a>.</p>
-                    <div class="bracket-container">`;
-            const rounds = {};
-            (data.matches || []).forEach(match => {
-                if (!rounds[match.round]) rounds[match.round] = [];
-                rounds[match.round].push(match);
-            });
-
-             Object.keys(rounds).sort((a, b) => a - b).forEach(roundNumber => {
-                bracketHTML += `<div class="bracket-round">`;
-                rounds[roundNumber].sort((a,b) => a.matchNumber - b.matchNumber).forEach(match => {
-                    bracketHTML += `
-                        <div class="bracket-match-wrapper">
-                            <div class="bracket-match">
-                               <div class="player-name ${match.winner === (match.player1?.id) ? 'winner' : ''}">${match.player1?.name || '...'} <span class="font-bold">${match.score1 || ''}</span></div>
-                               <div class="player-name ${match.winner === (match.player2?.id) ? 'winner' : ''}">${match.player2?.name || '...'} <span class="font-bold">${match.score2 || ''}</span></div>
-                            </div>
-                        </div>`;
-                });
-                bracketHTML += `</div>`;
-             });
-            bracketHTML += `</div></div>`;
-            return bracketHTML;
-        }
-
+        });
     </script>
 </body>
 </html>

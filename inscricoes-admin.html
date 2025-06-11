@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Admin - Inscrições</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style> body { font-family: 'Inter', sans-serif; } </style>
+</head>
+<body class="bg-gray-100">
+
+    <div class="flex h-screen bg-gray-100">
+        <!-- Barra Lateral de Navegação -->
+        <div class="hidden md:flex flex-col w-64 bg-white shadow-lg">
+            <div class="flex items-center justify-center h-20 shadow-md">
+                <h1 class="text-2xl font-extrabold text-blue-600">Admin</h1>
+            </div>
+            <div class="flex flex-col flex-1 overflow-y-auto">
+                <nav class="flex-1 px-2 py-4 bg-white">
+                    <a href="painel.html" class="flex items-center px-4 py-2 mt-2 text-gray-600 hover:bg-blue-100 hover:text-blue-700 rounded-lg">
+                        <i class="fas fa-trophy"></i><span class="ml-3">Torneios</span>
+                    </a>
+                    <a href="atletas-admin.html" class="flex items-center px-4 py-2 mt-2 text-gray-600 hover:bg-blue-100 hover:text-blue-700 rounded-lg">
+                        <i class="fas fa-users"></i><span class="ml-3">Atletas</span>
+                    </a>
+                    <a href="inscricoes-admin.html" class="flex items-center px-4 py-2 text-white bg-blue-600 rounded-lg">
+                        <i class="fas fa-user-plus"></i><span class="ml-3">Inscrições</span>
+                    </a>
+                    <a href="partidas-admin.html" class="flex items-center px-4 py-2 mt-2 text-gray-600 hover:bg-blue-100 hover:text-blue-700 rounded-lg">
+                        <i class="fas fa-table-tennis"></i><span class="ml-3">Partidas</span>
+                    </a>
+                </nav>
+            </div>
+        </div>
+
+        <!-- Conteúdo Principal -->
+        <div class="flex flex-col flex-1 overflow-y-auto">
+            <div class="flex items-center justify-between h-20 px-6 bg-white border-b">
+                <h1 class="text-2xl font-bold text-gray-800">Gerenciar Inscrições</h1>
+                 <div class="flex items-center">
+                    <span id="admin-email" class="text-sm font-semibold mr-4"></span>
+                    <button id="logout-btn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg">Logout</button>
+                </div>
+            </div>
+            <div class="p-6">
+                 <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <div class="space-y-4 bg-gray-50 p-6 rounded-lg border mb-8">
+                        <label for="enrollment-tournament-select" class="block font-medium">Selecione um Torneio (apenas torneios com inscrições abertas são exibidos):</label>
+                        <select id="enrollment-tournament-select" class="w-full p-3 border rounded-md"></select>
+                    </div>
+
+                    <div id="enrollment-management-area" class="mt-6 hidden">
+                        <div id="enrollment-form-container" class="bg-blue-50 p-6 rounded-lg border-l-4 border-blue-500 mb-8">
+                            <!-- O formulário de inscrição (simples ou duplas) será inserido aqui -->
+                        </div>
+
+                        <div>
+                            <h4 class="text-xl font-bold mb-4">Inscritos no Torneio</h4>
+                            <div id="enrolled-list" class="space-y-2">
+                                <p>Nenhum inscrito ainda.</p>
+                            </div>
+                        </div>
+                    </div>
+                 </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="toast-container"></div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, doc, getDoc, setDoc, deleteDoc, query, where, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { firebaseConfig, showToast, protectPage } from './config.js';
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        let currentTournamentId = null;
+        let unsubscribes = [];
+
+        protectPage(auth).then(user => {
+            if (user) document.getElementById('admin-email').textContent = user.email;
+        });
+        document.getElementById('logout-btn').addEventListener('click', () => signOut(auth));
+        
+        // --- FUNÇÃO PRINCIPAL DE SETUP ---
+        function setupEnrollmentsPage() {
+            const selectEl = document.getElementById('enrollment-tournament-select');
+            
+            // Carrega apenas torneios com inscrições abertas
+            const q = query(collection(db, "tournaments"), where("status", "==", "Inscrições Abertas"), orderBy("createdAt", "desc"));
+            onSnapshot(q, (snapshot) => {
+                selectEl.innerHTML = '<option value="">Selecione um torneio...</option>';
+                snapshot.forEach(doc => {
+                    selectEl.innerHTML += `<option value="${doc.id}">${doc.data().name}</option>`;
+                });
+            });
+
+            selectEl.addEventListener('change', async (e) => {
+                currentTournamentId = e.target.value;
+                document.getElementById('enrollment-management-area').classList.toggle('hidden', !currentTournamentId);
+                
+                if (currentTournamentId) {
+                    const tournamentDoc = await getDoc(doc(db, "tournaments", currentTournamentId));
+                    if (tournamentDoc.exists()) {
+                        listenToEnrollments(tournamentDoc.data().type);
+                    }
+                }
+            });
+        }
+
+        // --- LÓGICA DE INSCRIÇÕES ---
+        function listenToEnrollments(tournamentType) {
+            // Limpa listeners antigos para evitar duplicação
+            unsubscribes.forEach(unsub => unsub());
+            unsubscribes = [];
+
+            const formContainer = document.getElementById('enrollment-form-container');
+            const enrolledListEl = document.getElementById('enrolled-list');
+
+            const unsub1 = onSnapshot(collection(db, "athletes"), (allAthletesSnap) => {
+                const unsub2 = onSnapshot(collection(db, `tournaments/${currentTournamentId}/players`), (enrolledAthletesSnap) => {
+                    if (!formContainer || !enrolledListEl) return;
+                    
+                    const allAthletes = allAthletesSnap.docs.map(d => d.id);
+                    const enrolledData = enrolledAthletesSnap.docs.map(d => ({id: d.id, ...d.data()}));
+                    
+                    let enrolledIndividuals = [];
+                    enrolledData.forEach(p => {
+                        if (p.type === 'single') enrolledIndividuals.push(p.id);
+                        else if (p.type === 'double') enrolledIndividuals.push(...p.players);
+                    });
+                    
+                    const availableAthletes = allAthletes.filter(name => !enrolledIndividuals.includes(name));
+                    
+                    // Renderiza o formulário apropriado
+                    renderEnrollmentForm(formContainer, availableAthletes, tournamentType);
+
+                    // Renderiza a lista de inscritos
+                    enrolledListEl.innerHTML = enrolledData.length > 0
+                        ? enrolledData.map(player => createEnrolledItem(player.id)).join('')
+                        : '<p>Nenhum inscrito ainda.</p>';
+                });
+                unsubscribes.push(unsub2);
+            });
+            unsubscribes.push(unsub1);
+        }
+
+        function renderEnrollmentForm(container, availableAthletes, type) {
+            let options = availableAthletes.map(name => `<option value="${name}">${name}</option>`).join('');
+            
+            if (type === '1x1') {
+                container.innerHTML = `
+                    <form id="enroll-single-form" class="flex gap-2 items-center">
+                        <select class="w-full p-3 border rounded-md" required>${options}</select>
+                        <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-md">Inscrever</button>
+                    </form>`;
+                document.getElementById('enroll-single-form').addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    const selectedName = e.target.querySelector('select').value;
+                    if(selectedName) enrollSinglePlayer(selectedName);
+                });
+            } else { // 2x2
+                container.innerHTML = `
+                    <form id="enroll-double-form" class="space-y-3">
+                        <p class="font-semibold">Formar Dupla</p>
+                        <div><label for="p1" class="text-sm">Atleta 1:</label><select id="p1" class="w-full p-3 border rounded-md mt-1" required>${options}</select></div>
+                        <div><label for="p2" class="text-sm">Atleta 2:</label><select id="p2" class="w-full p-3 border rounded-md mt-1" required>${options}</select></div>
+                        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-md font-bold">Inscrever Dupla</button>
+                    </form>`;
+                document.getElementById('enroll-double-form').addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    const p1 = e.target.querySelector('#p1').value;
+                    const p2 = e.target.querySelector('#p2').value;
+                    if(p1 && p2 && p1 !== p2) enrollDoublePlayer(p1, p2);
+                    else showToast("Selecione dois atletas diferentes.", "error");
+                });
+            }
+        }
+
+        async function enrollSinglePlayer(playerName) {
+            await setDoc(doc(db, `tournaments/${currentTournamentId}/players`, playerName), { name: playerName, type: 'single' });
+        };
+        async function enrollDoublePlayer(p1, p2) {
+            const pairName = [p1, p2].sort().join(' / ');
+            await setDoc(doc(db, `tournaments/${currentTournamentId}/players`, pairName), { name: pairName, type: 'double', players: [p1, p2] });
+        };
+        window.unenroll = async (playerId) => {
+            if (confirm(`Remover "${playerId}" deste torneio?`)) {
+                 await deleteDoc(doc(db, `tournaments/${currentTournamentId}/players`, playerId));
+                 showToast("Inscrição removida.");
+            }
+        };
+
+        // --- FUNÇÕES DE TEMPLATE ---
+        function createEnrolledItem(playerId) {
+            return `
+                <div class="flex justify-between items-center bg-gray-50 p-3 rounded-lg border">
+                    <span class="font-medium">${playerId}</span>
+                    <button onclick="window.unenroll('${playerId}')" class="text-red-500 hover:text-red-700 font-bold py-1 px-3 rounded"><i class="fas fa-trash-alt"></i></button>
+                </div>`;
+        }
+
+        // --- INICIALIZAÇÃO ---
+        setupEnrollmentsPage();
+
+    </script>
+</body>
+</html>

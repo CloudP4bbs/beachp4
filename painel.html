@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Admin - Torneios</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style> body { font-family: 'Inter', sans-serif; } </style>
+</head>
+<body class="bg-gray-100">
+
+    <div class="flex h-screen bg-gray-100">
+        <!-- Barra Lateral de Navegação -->
+        <div class="hidden md:flex flex-col w-64 bg-white shadow-lg">
+            <div class="flex items-center justify-center h-20 shadow-md">
+                <h1 class="text-2xl font-extrabold text-blue-600">Admin</h1>
+            </div>
+            <div class="flex flex-col flex-1 overflow-y-auto">
+                <nav class="flex-1 px-2 py-4 bg-white">
+                    <a href="painel.html" class="flex items-center px-4 py-2 text-white bg-blue-600 rounded-lg">
+                        <i class="fas fa-trophy"></i><span class="ml-3">Torneios</span>
+                    </a>
+                    <a href="atletas-admin.html" class="flex items-center px-4 py-2 mt-2 text-gray-600 hover:bg-blue-100 hover:text-blue-700 rounded-lg">
+                        <i class="fas fa-users"></i><span class="ml-3">Atletas</span>
+                    </a>
+                    <a href="inscricoes-admin.html" class="flex items-center px-4 py-2 mt-2 text-gray-600 hover:bg-blue-100 hover:text-blue-700 rounded-lg">
+                        <i class="fas fa-user-plus"></i><span class="ml-3">Inscrições</span>
+                    </a>
+                    <a href="partidas-admin.html" class="flex items-center px-4 py-2 mt-2 text-gray-600 hover:bg-blue-100 hover:text-blue-700 rounded-lg">
+                        <i class="fas fa-table-tennis"></i><span class="ml-3">Partidas</span>
+                    </a>
+                </nav>
+            </div>
+        </div>
+
+        <!-- Conteúdo Principal -->
+        <div class="flex flex-col flex-1 overflow-y-auto">
+            <div class="flex items-center justify-between h-20 px-6 bg-white border-b">
+                <h1 class="text-2xl font-bold text-gray-800">Gerenciar Torneios</h1>
+                <div class="flex items-center">
+                    <span id="admin-email" class="text-sm font-semibold mr-4"></span>
+                    <button id="logout-btn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg">Logout</button>
+                </div>
+            </div>
+            <div class="p-6">
+                <!-- Seção para Criar Torneio -->
+                <div class="bg-white p-6 rounded-xl shadow-lg mb-8">
+                    <h3 class="text-2xl font-bold mb-4">Criar Novo Torneio</h3>
+                    <form id="create-tournament-form" class="space-y-4">
+                        <input type="text" id="tournament-name" placeholder="Nome do Torneio" class="w-full p-3 border rounded-md" required>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <select id="tournament-type" class="w-full p-3 border rounded-md"><option value="1x1">Simples (1x1)</option><option value="2x2">Duplas (2x2)</option></select>
+                            <select id="tournament-category" class="w-full p-3 border rounded-md"><option value="A">Cat. A</option><option value="B">Cat. B</option><option value="C">Cat. C</option><option value="D">Cat. D</option></select>
+                            <select id="tournament-age" class="w-full p-3 border rounded-md"><option value="Adulto">Adulto</option><option value="Infantil">Infantil</option></select>
+                            <select id="tournament-gender" class="w-full p-3 border rounded-md"><option value="Masculino">Masculino</option><option value="Feminino">Feminino</option><option value="Misto">Misto</option></select>
+                        </div>
+                        <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg shadow-md">Criar Torneio</button>
+                    </form>
+                </div>
+
+                <!-- Seção para Listar Torneios -->
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <h3 class="text-2xl font-bold mb-4">Torneios Existentes</h3>
+                    <div id="admin-tournaments-list" class="space-y-3">
+                        <p>Carregando torneios...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="toast-container"></div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { firebaseConfig, showToast, protectPage } from './config.js';
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // Protege a página e obtém o usuário logado
+        protectPage(auth).then(user => {
+            if (user) {
+                document.getElementById('admin-email').textContent = user.email;
+            }
+        });
+
+        // Logout
+        document.getElementById('logout-btn').addEventListener('click', () => {
+            signOut(auth);
+        });
+
+        // --- LÓGICA DE GERENCIAMENTO DE TORNEIOS ---
+
+        // Criar Torneio
+        const createTournamentForm = document.getElementById('create-tournament-form');
+        createTournamentForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                await addDoc(collection(db, "tournaments"), {
+                    name: document.getElementById('tournament-name').value,
+                    type: document.getElementById('tournament-type').value,
+                    category: document.getElementById('tournament-category').value,
+                    age: document.getElementById('tournament-age').value,
+                    gender: document.getElementById('tournament-gender').value,
+                    status: 'Inscrições Abertas',
+                    createdAt: serverTimestamp()
+                });
+                createTournamentForm.reset();
+                showToast("Torneio criado com sucesso!");
+            } catch (error) {
+                console.error("Erro ao criar torneio:", error);
+                showToast("Erro ao criar torneio.", "error");
+            }
+        });
+
+        // Listar Torneios
+        const tournamentsListEl = document.getElementById('admin-tournaments-list');
+        const q = query(collection(db, "tournaments"), orderBy("createdAt", "desc"));
+        onSnapshot(q, (snapshot) => {
+            if (!tournamentsListEl) return;
+            if (snapshot.empty) {
+                tournamentsListEl.innerHTML = '<p>Nenhum torneio criado ainda.</p>';
+                return;
+            }
+            tournamentsListEl.innerHTML = snapshot.docs.map(doc => createAdminTournamentCard(doc.id, doc.data())).join('');
+        });
+
+        function createAdminTournamentCard(id, data) {
+            return `
+                <div class="flex justify-between items-center bg-gray-50 p-3 rounded-lg border">
+                    <div>
+                        <p class="font-semibold">${data.name}</p>
+                        <p class="text-sm text-gray-600">${data.category} - ${data.type} - <span class="font-medium">${data.status}</span></p>
+                    </div>
+                    <button onclick="window.deleteTournament('${id}')" class="text-red-500 hover:text-red-700 font-bold py-1 px-3 rounded"><i class="fas fa-trash"></i></button>
+                </div>`;
+        }
+
+        window.deleteTournament = async (id) => {
+            if (confirm("Tem certeza que deseja apagar este torneio? Todos os dados (inscrições, partidas) serão apagados permanentemente.")) {
+                try {
+                    await deleteDoc(doc(db, "tournaments", id));
+                    showToast("Torneio apagado com sucesso.");
+                } catch (error) {
+                    showToast("Erro ao apagar torneio.", "error");
+                }
+            }
+        }
+    </script>
+</body>
+</html>
