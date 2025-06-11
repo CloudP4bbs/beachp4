@@ -17,11 +17,6 @@
         .player-name { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; border-bottom: 1px solid #f1f5f9; font-size: 0.95rem; }
         .player-name:last-child { border-bottom: none; }
         .winner { font-weight: 700; color: #16a34a; background-color: #f0fdf4; }
-        /* Linhas Conectoras */
-        .bracket-match-wrapper::after { content: ''; position: absolute; right: -2.5rem; top: 50%; transform: translateY(-50%); width: 2.5rem; height: 2px; background-color: #cbd5e1; }
-        .bracket-round:last-child .bracket-match-wrapper::after { display: none; }
-        .bracket-match-wrapper:nth-child(odd):not(:last-child)::before { content: ''; position: absolute; right: -4.5rem; top: 50%; width: 2rem; height: calc(100% + 50px); border: 2px solid #cbd5e1; border-left: none; border-top-right-radius: 0.75rem; border-bottom-right-radius: 0.75rem; }
-        .bracket-round > div:nth-child(even) .bracket-match-wrapper::before { content: ''; position: absolute; right: -4.5rem; bottom: 50%; width: 2rem; height: calc(100% + 50px); border: 2px solid #cbd5e1; border-left: none; transform: scaleY(-1); border-top-right-radius: 0.75rem; border-bottom-right-radius: 0.75rem; }
         .scroll-indicator { animation: bounce-x 2s infinite; }
         @keyframes bounce-x { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(5px); } }
     </style>
@@ -32,7 +27,7 @@
         <div class="container mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between items-center py-3">
                 <div class="flex items-center space-x-2">
-                     <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v11.494m-5.22-6.22l10.44 0M17.494 6.253L6.506 17.241M6.506 6.253l10.988 10.988"></path><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                     <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v11.494m-5.22-6.22l10.44 0M17.494 6.253L6.506 17.241M6.506 6.253l10.988 10.988"></path><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     <h1 class="text-xl font-bold text-gray-800">Painel Admin</h1>
                 </div>
                 <div class="flex items-center">
@@ -49,7 +44,6 @@
         <div id="loading-message" class="text-center text-gray-500 text-lg mt-10">Carregando...</div>
     </main>
 
-    <!-- Modal de Notificação -->
     <div id="notification-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
         <div class="bg-white p-6 rounded-lg shadow-xl text-center max-w-sm mx-4">
             <p id="notification-message" class="text-lg"></p>
@@ -61,9 +55,8 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, onSnapshot, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Configuração do Firebase
         const firebaseConfig = {
           apiKey: "AIzaSyDEiEknWaOl2ra-it2dB8mFGPb9-Q__5-E",
           authDomain: "beachp4-70588.firebaseapp.com",
@@ -72,7 +65,7 @@
           messagingSenderId: "960018980292",
           appId: "1:960018980292:web:a11dbdd40811dec1ee5891"
         };
-        const appId = 'beach-tennis-v4';
+        const appId = 'beach-tennis-v5';
         
         let db, auth;
         let currentTournamentId = null;
@@ -87,7 +80,6 @@
             document.body.innerHTML = `<div class="text-center text-red-500 p-8">Erro crítico na configuração do Firebase.</div>`;
         }
 
-        // --- Autenticação e Funções da UI ---
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 document.getElementById('user-email').textContent = user.email;
@@ -107,34 +99,32 @@
             document.getElementById('notification-modal').classList.add('hidden');
         }
 
-        window.logout = () => {
-            signOut(auth).catch((error) => console.error("Erro no logout:", error));
-        };
-        
-        // --- Renderização da UI e Lógica ---
+        window.logout = () => signOut(auth);
         
         function renderMainLayout() {
             const mainContainer = document.getElementById('main-content');
             mainContainer.innerHTML = `
                 <div class="bg-white p-6 rounded-xl shadow-md mb-8">
                     <h2 class="text-2xl font-bold mb-4 text-gray-800">Criar Novo Torneio</h2>
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <input type="text" id="t-name" placeholder="Nome do Torneio" class="form-input md:col-span-2 lg:col-span-3">
-                        <select id="t-type" class="form-input">
-                            <option value="simples">Simples (1x1)</option>
-                            <option value="duplas">Duplas (2x2)</option>
-                        </select>
-                        <select id="t-category" class="form-input">
-                            <option value="A">Categoria A</option><option value="B">Categoria B</option><option value="C">Categoria C</option><option value="D">Categoria D</option><option value="Infantil">Infantil</option>
-                        </select>
-                        <select id="t-division" class="form-input">
-                            <option value="masculino">Masculino</option><option value="feminino">Feminino</option><option value="misto">Misto</option>
-                        </select>
-                        <select id="t-mode" class="form-input md:col-span-2">
-                            <option value="knockout">Mata-mata Direto</option>
-                            <option value="group_stage">Fase de Grupos + Mata-mata</option>
-                        </select>
-                        <button onclick="createTournament()" class="bg-blue-600 text-white p-3 rounded-lg hover:bg-blue-700 font-semibold transition-transform transform hover:scale-105 h-full">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <input type="text" id="t-name" placeholder="Nome do Torneio" class="form-input md:col-span-2 lg:col-span-4">
+                        <input type="text" id="t-logo-url" placeholder="URL da Logo do Torneio" class="form-input md:col-span-2 lg:col-span-4">
+                        
+                        <div class="lg:col-span-2">
+                          <label for="t-date" class="block text-sm font-medium text-gray-700 mb-1">Data de Início</label>
+                          <input type="date" id="t-date" class="form-input">
+                        </div>
+                        <div class="lg:col-span-2">
+                          <label for="t-time" class="block text-sm font-medium text-gray-700 mb-1">Hora de Início</label>
+                          <input type="time" id="t-time" class="form-input">
+                        </div>
+                        
+                        <select id="t-type" class="form-input"><option value="simples">Simples (1x1)</option><option value="duplas">Duplas (2x2)</option></select>
+                        <select id="t-category" class="form-input"><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option><option value="Infantil">Infantil</option></select>
+                        <select id="t-division" class="form-input"><option value="masculino">Masculino</option><option value="feminino">Feminino</option><option value="misto">Misto</option></select>
+                        <select id="t-mode" class="form-input"><option value="knockout">Mata-mata</option><option value="group_stage">Grupos + Mata-mata</option></select>
+                        
+                        <button onclick="createTournament()" class="md:col-span-2 lg:col-span-4 bg-blue-600 text-white p-3 rounded-lg hover:bg-blue-700 font-semibold transition-transform transform hover:scale-105 h-full text-lg">
                             Criar Torneio
                         </button>
                     </div>
@@ -167,7 +157,7 @@
                 if (!currentTournamentId && !snapshot.empty) {
                     selectTournament(snapshot.docs[0].id);
                 } else if (currentTournamentId) {
-                    selectTournament(currentTournamentId);
+                    selectTournament(currentTournamentId, true); // force re-render
                 } else {
                      document.getElementById('details-column').innerHTML = `<div class="bg-white p-6 rounded-xl shadow-md text-center"><p class="text-gray-500">Selecione ou crie um torneio.</p></div>`;
                 }
@@ -182,11 +172,14 @@
             }
             const tournamentData = {
                 name: tName,
+                logoUrl: document.getElementById('t-logo-url').value || '',
+                startDate: document.getElementById('t-date').value || '',
+                startTime: document.getElementById('t-time').value || '',
                 type: document.getElementById('t-type').value,
                 category: document.getElementById('t-category').value,
                 division: document.getElementById('t-division').value,
                 mode: document.getElementById('t-mode').value,
-                status: 'open', // open, group_stage, knockout, completed
+                status: 'open',
                 participants: [],
                 groups: [],
                 matches: [],
@@ -196,29 +189,21 @@
                 const tournamentsCol = collection(db, `artifacts/${appId}/public/data/tournaments`);
                 const docRef = await addDoc(tournamentsCol, tournamentData);
                 showNotification("Torneio criado com sucesso!");
-                document.getElementById('t-name').value = '';
-                currentTournamentId = docRef.id; // Seleciona o novo torneio
+                ['t-name', 't-logo-url', 't-date', 't-time'].forEach(id => document.getElementById(id).value = '');
+                currentTournamentId = docRef.id;
             } catch (error) {
                 console.error("Erro ao criar torneio: ", error);
                 showNotification("Ocorreu um erro ao criar o torneio.");
             }
         };
 
-        window.selectTournament = (id) => {
+        window.selectTournament = (id, force = false) => {
+            if (id === currentTournamentId && !force) return;
             if (unsubscribeFromDetails) unsubscribeFromDetails();
             currentTournamentId = id;
             const tournamentDocRef = doc(db, `artifacts/${appId}/public/data/tournaments`, currentTournamentId);
             unsubscribeFromDetails = onSnapshot(tournamentDocRef, (doc) => {
                  if (doc.exists()) {
-                    // Atualiza o destaque na lista
-                    const buttons = document.querySelectorAll('#tournaments-list button');
-                    buttons.forEach(btn => {
-                        if (btn.onclick.toString().includes(id)) {
-                             btn.className = 'w-full text-left p-4 rounded-lg transition-all bg-blue-600 text-white shadow-lg';
-                        } else {
-                             btn.className = 'w-full text-left p-4 rounded-lg transition-all bg-gray-100 hover:bg-blue-100 hover:text-blue-800';
-                        }
-                    });
                     displayTournamentDetails({ id: doc.id, ...doc.data() });
                 }
             });
@@ -227,17 +212,13 @@
         function displayTournamentDetails(data) {
             const detailsColumn = document.getElementById('details-column');
             if (!detailsColumn) return;
-
-            let content = '';
-            // Renderiza com base no status do torneio
             if (data.status === 'open') {
-                content = renderParticipantManagement(data);
+                detailsColumn.innerHTML = renderParticipantManagement(data);
             } else if (data.status === 'knockout' || data.status === 'completed') {
-                content = renderKnockoutManagement(data);
+                detailsColumn.innerHTML = renderKnockoutManagement(data);
             } else {
-                content = `<div class="bg-white p-6 rounded-xl shadow-md"><h2 class="text-2xl font-bold">${data.name}</h2><p class="text-gray-600 mt-2">Este modo (${data.status}) ainda não possui interface de gerenciamento.</p></div>`;
+                detailsColumn.innerHTML = `<div class="bg-white p-6 rounded-xl shadow-md"><h2 class="text-2xl font-bold">${data.name}</h2><p class="text-gray-600 mt-2">Este modo (${data.status}) ainda não possui interface de gerenciamento.</p></div>`;
             }
-            detailsColumn.innerHTML = content;
         }
         
         function renderParticipantManagement(data) {
@@ -253,7 +234,7 @@
                         <h3 class="font-semibold mb-2">Adicionar Participante</h3>
                         <div class="flex gap-2">
                              <input type="text" id="p-name" placeholder="Nome do Jogador/Dupla" class="form-input">
-                             <button class="bg-green-500 text-white p-3 rounded-lg font-semibold hover:bg-green-600">Add</button>
+                             <button onclick="addParticipant()" class="bg-green-500 text-white px-4 rounded-lg font-semibold hover:bg-green-600">Add</button>
                         </div>
                     </div>
                     <div>
@@ -263,12 +244,34 @@
                      <div class="text-center mt-6">
                         <button class="bg-purple-600 text-white py-3 px-6 rounded-lg text-lg font-bold hover:bg-purple-700">Iniciar Torneio</button>
                     </div>
-                </div>
-            `;
+                </div>`;
         }
 
+        window.addParticipant = async () => {
+            const pNameInput = document.getElementById('p-name');
+            if (!pNameInput || !pNameInput.value.trim()) {
+                showNotification("Por favor, insira o nome do participante.");
+                return;
+            }
+            if (!currentTournamentId) {
+                showNotification("Nenhum torneio selecionado.");
+                return;
+            }
+            const newParticipant = { id: `p${Date.now()}`, name: pNameInput.value.trim() };
+            const tournamentDocRef = doc(db, `artifacts/${appId}/public/data/tournaments`, currentTournamentId);
+            try {
+                await updateDoc(tournamentDocRef, {
+                    participants: arrayUnion(newParticipant)
+                });
+                showNotification("Participante adicionado com sucesso!");
+                pNameInput.value = '';
+            } catch (error) {
+                console.error("Erro ao adicionar participante: ", error);
+                showNotification("Falha ao adicionar participante.");
+            }
+        };
+
         function renderKnockoutManagement(data) {
-           // Função para renderizar a chave (igual à v3)
             return `<div class="bg-white p-6 rounded-xl shadow-md"><h2 class="text-2xl font-bold">${data.name}</h2><p class="text-gray-600 mt-2">Renderização da chave de mata-mata aqui.</p></div>`;
         }
 
